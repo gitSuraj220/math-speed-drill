@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { AdBanner } from "@/components/AdBanner";
+import { CountPicker } from "@/components/CountPicker";
 
 function Stepper({
   label,
@@ -34,7 +35,7 @@ function Stepper({
       <Text style={[styles.stepperLabel, { color: colors.mutedForeground }]}>
         {label}
       </Text>
-      <View style={styles.stepperRow}>
+      <View style={styles.stepperInner}>
         <Pressable
           onPress={() => onChange(Math.max(min, value - 1))}
           style={({ pressed }) => [
@@ -44,9 +45,7 @@ function Stepper({
         >
           <Feather name="minus" size={20} color={colors.foreground} />
         </Pressable>
-
         <Text style={[styles.stepValue, { color }]}>{value}</Text>
-
         <Pressable
           onPress={() => onChange(Math.min(max, value + 1))}
           style={({ pressed }) => [
@@ -77,85 +76,60 @@ export default function TableSelectScreen() {
 
   const [from, setFrom] = useState(12);
   const [to, setTo] = useState(20);
+  const [count, setCount] = useState(10);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const handleSetFrom = (v: number) => {
-    setFrom(v);
-    if (v > to) setTo(v);
-  };
-
-  const handleSetTo = (v: number) => {
-    setTo(v);
-    if (v < from) setFrom(v);
-  };
+  const handleSetFrom = (v: number) => { setFrom(v); if (v > to) setTo(v); };
+  const handleSetTo = (v: number) => { setTo(v); if (v < from) setFrom(v); };
 
   const startDrill = () => {
     router.push({
       pathname: "/quiz",
-      params: { mode: "tables", tableFrom: String(from), tableTo: String(to) },
+      params: {
+        mode: "tables",
+        tableFrom: String(from),
+        tableTo: String(to),
+        questionCount: String(count),
+      },
     });
   };
 
-  const rangeCount = to - from + 1;
-  const rangeLabel =
-    from === to ? `Table of ${from}` : `Tables ${from} to ${to}`;
+  const rangeLabel = from === to ? `Table of ${from}` : `Tables ${from} to ${to}`;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          { paddingTop: topPad + 16, borderBottomColor: colors.border },
-        ]}
-      >
+      <View style={[styles.header, { paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.title, { color: colors.foreground }]}>
-          Table Master
-        </Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Table Master</Text>
         <View style={{ width: 30 }} />
       </View>
 
       <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: bottomPad + 16 },
-        ]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad + 16 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-          QUICK SELECT
-        </Text>
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>QUICK SELECT</Text>
         <View style={styles.quickGrid}>
           {QUICK_PICKS.map((q) => {
             const active = q.from === from && q.to === to;
             return (
               <Pressable
                 key={q.label}
-                onPress={() => {
-                  setFrom(q.from);
-                  setTo(q.to);
-                }}
+                onPress={() => { setFrom(q.from); setTo(q.to); }}
                 style={({ pressed }) => [
                   styles.quickChip,
                   {
-                    backgroundColor: active
-                      ? colors.tableMaster
-                      : colors.card,
+                    backgroundColor: active ? colors.tableMaster : colors.card,
                     borderColor: active ? colors.tableMaster : colors.border,
                     opacity: pressed ? 0.75 : 1,
                   },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.quickChipText,
-                    { color: active ? "#fff" : colors.foreground },
-                  ]}
-                >
+                <Text style={[styles.quickChipText, { color: active ? "#fff" : colors.foreground }]}>
                   {q.label}
                 </Text>
               </Pressable>
@@ -163,65 +137,36 @@ export default function TableSelectScreen() {
           })}
         </View>
 
-        <Text
-          style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 24 }]}
-        >
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 20 }]}>
           CUSTOM RANGE
         </Text>
-
-        <View style={styles.stepperRow}>
-          <Stepper
-            label="From"
-            value={from}
-            min={1}
-            max={50}
-            onChange={handleSetFrom}
-            color={colors.tableMaster}
-          />
-          <View style={styles.rangeSep}>
-            <Feather name="arrow-right" size={20} color={colors.mutedForeground} />
-          </View>
-          <Stepper
-            label="To"
-            value={to}
-            min={1}
-            max={50}
-            onChange={handleSetTo}
-            color={colors.tableMaster}
-          />
+        <View style={styles.stepRow}>
+          <Stepper label="From" value={from} min={1} max={50} onChange={handleSetFrom} color={colors.tableMaster} />
+          <View style={styles.arrow}><Feather name="arrow-right" size={20} color={colors.mutedForeground} /></View>
+          <Stepper label="To" value={to} min={1} max={50} onChange={handleSetTo} color={colors.tableMaster} />
         </View>
 
-        <View
-          style={[
-            styles.previewCard,
-            { backgroundColor: colors.accent, borderColor: colors.border },
-          ]}
-        >
-          <Text style={[styles.previewLabel, { color: colors.accentForeground }]}>
-            Selected
-          </Text>
-          <Text style={[styles.previewRange, { color: colors.tableMaster }]}>
-            {rangeLabel}
-          </Text>
-          <Text style={[styles.previewCount, { color: colors.accentForeground }]}>
-            {rangeCount === 1
-              ? "Single table drill"
-              : `${rangeCount} tables · 10 questions`}
+        <View style={[styles.previewCard, { backgroundColor: colors.accent, borderColor: colors.border }]}>
+          <Text style={[styles.previewRange, { color: colors.tableMaster }]}>{rangeLabel}</Text>
+          <Text style={[styles.previewSub, { color: colors.accentForeground }]}>
+            {to - from + 1 === 1 ? "Single table drill" : `${to - from + 1} tables`}
           </Text>
         </View>
+
+        <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 20 }]}>
+          NUMBER OF QUESTIONS
+        </Text>
+        <CountPicker value={count} onChange={setCount} accentColor={colors.tableMaster} />
 
         <Pressable
           onPress={startDrill}
           style={({ pressed }) => [
             styles.startBtn,
-            {
-              backgroundColor: colors.tableMaster,
-              opacity: pressed ? 0.85 : 1,
-            },
+            { backgroundColor: colors.tableMaster, opacity: pressed ? 0.85 : 1 },
           ]}
         >
           <Feather name="zap" size={20} color="#fff" />
-          <Text style={styles.startBtnText}>Start Drill</Text>
+          <Text style={styles.startBtnText}>Start Drill · {count} Questions</Text>
         </Pressable>
       </ScrollView>
 
@@ -240,46 +185,25 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   backBtn: { padding: 4 },
-  title: {
-    flex: 1,
-    fontSize: 20,
-    fontFamily: "Inter_700Bold",
-    textAlign: "center",
-  },
-  scroll: {
-    padding: 20,
-    gap: 12,
-  },
+  title: { flex: 1, fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
+  scroll: { padding: 20, gap: 12 },
   sectionLabel: {
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
     letterSpacing: 1.4,
     textTransform: "uppercase",
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  quickGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
+  quickGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   quickChip: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 24,
     borderWidth: 1.5,
   },
-  quickChipText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
-  stepperRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  rangeSep: {
-    paddingTop: 20,
-  },
+  quickChipText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  stepRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  arrow: { paddingTop: 18 },
   stepperContainer: {
     flex: 1,
     borderRadius: 14,
@@ -288,48 +212,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-  stepperLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  stepBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepValue: {
-    fontSize: 34,
-    fontFamily: "Inter_700Bold",
-    minWidth: 48,
-    textAlign: "center",
-  },
+  stepperLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 1 },
+  stepperInner: { flexDirection: "row", alignItems: "center", gap: 8 },
+  stepBtn: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  stepValue: { fontSize: 34, fontFamily: "Inter_700Bold", minWidth: 48, textAlign: "center" },
   previewCard: {
     borderRadius: 14,
     borderWidth: 1,
-    padding: 18,
+    padding: 16,
     alignItems: "center",
     gap: 4,
-    marginTop: 8,
   },
-  previewLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  previewRange: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    marginTop: 2,
-  },
-  previewCount: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-  },
+  previewRange: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  previewSub: { fontSize: 13, fontFamily: "Inter_400Regular" },
   startBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -339,9 +234,5 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginTop: 8,
   },
-  startBtnText: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    color: "#ffffff",
-  },
+  startBtnText: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#ffffff" },
 });

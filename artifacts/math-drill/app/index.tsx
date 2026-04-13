@@ -128,7 +128,7 @@ export default function Dashboard() {
           subtitle="Squares 1–100  ·  Cubes 1–50"
           icon="zap"
           color={colors.squareCube}
-          onPress={() => router.push({ pathname: "/quiz", params: { mode: "squarecube" } })}
+          onPress={() => router.push("/squarecube-select")}
         />
         <ModeCard
           title="Lightning Addition"

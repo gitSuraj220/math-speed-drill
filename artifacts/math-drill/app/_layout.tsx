@@ -27,6 +27,7 @@ function RootLayoutNav() {
       <Stack.Screen name="quiz" options={{ headerShown: false }} />
       <Stack.Screen name="stats" options={{ headerShown: false }} />
       <Stack.Screen name="table-select" options={{ headerShown: false }} />
+      <Stack.Screen name="squarecube-select" options={{ headerShown: false }} />
     </Stack>
   );
 }
