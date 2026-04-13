@@ -1,8 +1,9 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import { Feather } from "@expo/vector-icons";
 
-const COUNT_OPTIONS = [10, 15, 20, 25, 30, 40, 50];
+const COUNT_OPTIONS = [10, 15, 20, 25, 30, 40, 50, 0];
 
 interface CountPickerProps {
   value: number;
@@ -19,6 +20,7 @@ export function CountPicker({ value, onChange, accentColor }: CountPickerProps) 
       contentContainerStyle={styles.row}
     >
       {COUNT_OPTIONS.map((n) => {
+        const isInfinity = n === 0;
         const active = n === value;
         return (
           <Pressable
@@ -33,9 +35,22 @@ export function CountPicker({ value, onChange, accentColor }: CountPickerProps) 
               },
             ]}
           >
-            <Text style={[styles.chipText, { color: active ? "#fff" : colors.foreground }]}>
-              {n}
-            </Text>
+            {isInfinity ? (
+              <Feather
+                name="infinity"
+                size={18}
+                color={active ? "#fff" : colors.foreground}
+              />
+            ) : (
+              <Text
+                style={[
+                  styles.chipText,
+                  { color: active ? "#fff" : colors.foreground },
+                ]}
+              >
+                {n}
+              </Text>
+            )}
           </Pressable>
         );
       })}
@@ -56,6 +71,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     minWidth: 56,
     alignItems: "center",
+    justifyContent: "center",
   },
   chipText: {
     fontSize: 15,

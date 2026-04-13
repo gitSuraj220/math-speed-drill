@@ -25,6 +25,8 @@ import {
 } from "@/utils/mathData";
 
 const QUESTION_TIME = 25;
+const INFINITY_BATCH = 30;
+const INFINITY_REFILL_AT = 8;
 
 type Mode = "tables" | "squarecube" | "addition";
 type DrillType = "squares" | "cubes" | "mixed";
@@ -45,7 +47,7 @@ function getModeLabel(mode: Mode, params: Record<string, string | undefined>) {
   return "Lightning Addition";
 }
 
-function buildQuestions(
+function buildBatch(
   mode: Mode,
   count: number,
   params: Record<string, string | undefined>
@@ -61,13 +63,13 @@ function buildQuestions(
     const sqTo = params.sqTo ? parseInt(params.sqTo, 10) : 30;
     const cbFrom = params.cbFrom ? parseInt(params.cbFrom, 10) : 1;
     const cbTo = params.cbTo ? parseInt(params.cbTo, 10) : 20;
-
     if (dt === "squares") return getSquareQuestionsForRange(sqFrom, sqTo, count);
     if (dt === "cubes") return getCubeQuestionsForRange(cbFrom, cbTo, count);
     const half = Math.ceil(count / 2);
-    const sq = getSquareQuestionsForRange(sqFrom, sqTo, half);
-    const cb = getCubeQuestionsForRange(cbFrom, cbTo, count - half);
-    return [...sq, ...cb].sort(() => Math.random() - 0.5);
+    return [
+      ...getSquareQuestionsForRange(sqFrom, sqTo, half),
+      ...getCubeQuestionsForRange(cbFrom, cbTo, count - half),
+    ].sort(() => Math.random() - 0.5);
   }
   return getAdditionQuestions(count);
 }
@@ -75,17 +77,20 @@ function buildQuestions(
 export default function QuizScreen() {
   const rawParams = useLocalSearchParams<Record<string, string>>();
   const mode = (rawParams.mode as Mode) || "tables";
-  const totalQuestions = rawParams.questionCount
-    ? Math.max(10, Math.min(50, parseInt(rawParams.questionCount, 10)))
+  const parsedCount = rawParams.questionCount
+    ? parseInt(rawParams.questionCount, 10)
     : 10;
+  const isInfinity = parsedCount === 0;
+  const totalQuestions = isInfinity ? 0 : Math.max(10, Math.min(50, parsedCount));
 
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { addSession } = useStats();
+  const modeLabel = getModeLabel(mode, rawParams);
 
-  const [questions] = useState<Question[]>(() =>
-    buildQuestions(mode, totalQuestions, rawParams)
+  const [questions, setQuestions] = useState<Question[]>(() =>
+    buildBatch(mode, isInfinity ? INFINITY_BATCH : totalQuestions, rawParams)
   );
   const [currentIdx, setCurrentIdx] = useState(0);
   const [input, setInput] = useState("");
@@ -98,10 +103,18 @@ export default function QuizScreen() {
   const questionStartRef = useRef(Date.now());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSubmitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const modeLabel = getModeLabel(mode, rawParams);
 
   const currentQ = questions[currentIdx];
   const progress = timeLeft / QUESTION_TIME;
+
+  useEffect(() => {
+    if (isInfinity && questions.length - currentIdx <= INFINITY_REFILL_AT) {
+      setQuestions((prev) => [
+        ...prev,
+        ...buildBatch(mode, INFINITY_BATCH, rawParams),
+      ]);
+    }
+  }, [currentIdx, isInfinity, questions.length]);
 
   const stopTimer = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -111,10 +124,7 @@ export default function QuizScreen() {
     stopTimer();
     setTimeLeft(QUESTION_TIME);
     timerRef.current = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) { stopTimer(); return 0; }
-        return t - 1;
-      });
+      setTimeLeft((t) => { if (t <= 1) { stopTimer(); return 0; } return t - 1; });
     }, 1000);
   }, [stopTimer]);
 
@@ -133,6 +143,21 @@ export default function QuizScreen() {
     if (timeLeft === 0 && phase === "question") handleSubmit(true);
   }, [timeLeft, phase]);
 
+  const finishSession = useCallback(
+    async (finalCorrect: number, finalIncorrect: number, times: number[]) => {
+      const avg = times.length > 0
+        ? Math.round(times.reduce((a, b) => a + b, 0) / times.length)
+        : 0;
+      await addSession({
+        mode: modeLabel + (isInfinity ? " ∞" : ""),
+        correct: finalCorrect,
+        incorrect: finalIncorrect,
+        avgTimeMs: avg,
+      });
+    },
+    [modeLabel, isInfinity, addSession]
+  );
+
   const handleSubmit = useCallback(
     (timeout = false, forcedInput?: string) => {
       if (autoSubmitRef.current) { clearTimeout(autoSubmitRef.current); autoSubmitRef.current = null; }
@@ -141,23 +166,20 @@ export default function QuizScreen() {
       const userAnswer = timeout ? "" : (forcedInput ?? input);
       const isCorrect = !timeout && parseInt(userAnswer, 10) === currentQ.answer;
 
+      const newCorrect = isCorrect ? correct + 1 : correct;
+      const newIncorrect = isCorrect ? incorrect : incorrect + 1;
+      const newTimes = [...answerTimes, elapsed];
+
       setLastCorrect(isCorrect);
-      setAnswerTimes((prev) => [...prev, elapsed]);
-      if (isCorrect) setCorrect((c) => c + 1);
-      else setIncorrect((ic) => ic + 1);
+      setAnswerTimes(newTimes);
+      if (isCorrect) setCorrect(newCorrect); else setIncorrect(newIncorrect);
       setPhase("result");
 
       const delay = isCorrect ? 700 : 1400;
       setTimeout(async () => {
-        if (currentIdx + 1 >= totalQuestions) {
-          const times = [...answerTimes, elapsed];
-          const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
-          await addSession({
-            mode: modeLabel,
-            correct: isCorrect ? correct + 1 : correct,
-            incorrect: isCorrect ? incorrect : incorrect + 1,
-            avgTimeMs: avg,
-          });
+        const sessionOver = !isInfinity && currentIdx + 1 >= totalQuestions;
+        if (sessionOver) {
+          await finishSession(newCorrect, newIncorrect, newTimes);
           setPhase("done");
         } else {
           setCurrentIdx((i) => i + 1);
@@ -166,7 +188,7 @@ export default function QuizScreen() {
         }
       }, delay);
     },
-    [input, currentQ, currentIdx, correct, incorrect, answerTimes, modeLabel, addSession, stopTimer, totalQuestions]
+    [input, currentQ, currentIdx, correct, incorrect, answerTimes, isInfinity, totalQuestions, finishSession, stopTimer]
   );
 
   const handleDigit = useCallback(
@@ -195,17 +217,27 @@ export default function QuizScreen() {
     setInput("");
   }, []);
 
-  const handleCancel = useCallback(() => {
-    if (Platform.OS === "web") {
-      stopTimer();
+  const doExit = useCallback(async () => {
+    stopTimer();
+    if (isInfinity && (correct + incorrect) > 0) {
+      await finishSession(correct, incorrect, answerTimes);
+      setPhase("done");
+    } else {
       router.back();
-      return;
     }
-    Alert.alert("Exit Drill", "Are you sure you want to exit?", [
-      { text: "Keep Going", style: "cancel" },
-      { text: "Exit", style: "destructive", onPress: () => { stopTimer(); router.back(); } },
-    ]);
-  }, [stopTimer, router]);
+  }, [stopTimer, isInfinity, correct, incorrect, answerTimes, finishSession, router]);
+
+  const handleCancel = useCallback(() => {
+    if (Platform.OS === "web") { doExit(); return; }
+    Alert.alert(
+      isInfinity ? "End Drill?" : "Exit Drill",
+      isInfinity ? "Save your results and finish?" : "Are you sure you want to exit?",
+      [
+        { text: "Keep Going", style: "cancel" },
+        { text: isInfinity ? "Finish" : "Exit", style: "destructive", onPress: doExit },
+      ]
+    );
+  }, [isInfinity, doExit]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -217,7 +249,11 @@ export default function QuizScreen() {
       answerTimes.length > 0
         ? Math.round(answerTimes.reduce((a, b) => a + b, 0) / answerTimes.length / 1000)
         : 0;
-    const retryParams: Record<string, string> = { mode, questionCount: String(totalQuestions) };
+
+    const retryParams: Record<string, string> = {
+      mode,
+      questionCount: String(isInfinity ? 0 : totalQuestions),
+    };
     if (rawParams.tableFrom) retryParams.tableFrom = rawParams.tableFrom;
     if (rawParams.tableTo) retryParams.tableTo = rawParams.tableTo;
     if (rawParams.drillType) retryParams.drillType = rawParams.drillType;
@@ -231,7 +267,20 @@ export default function QuizScreen() {
         <View style={[styles.doneWrap, { paddingTop: topPad + 24, paddingBottom: bottomPad + 8 }]}>
           <View style={[styles.doneCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.doneTitle, { color: colors.primary }]}>Session Complete</Text>
-            <Text style={[styles.doneMode, { color: colors.mutedForeground }]}>{modeLabel} · {totalQuestions} Questions</Text>
+            <View style={styles.doneModeRow}>
+              <Text style={[styles.doneMode, { color: colors.mutedForeground }]}>{modeLabel}</Text>
+              {isInfinity && (
+                <View style={[styles.infinityBadge, { backgroundColor: colors.primary }]}>
+                  <Feather name="infinity" size={12} color="#fff" />
+                  <Text style={styles.infinityBadgeText}>{total} answered</Text>
+                </View>
+              )}
+              {!isInfinity && (
+                <Text style={[styles.doneMode, { color: colors.mutedForeground }]}>
+                  {" · "}{totalQuestions} Questions
+                </Text>
+              )}
+            </View>
 
             <View style={styles.doneStats}>
               {[
@@ -252,13 +301,13 @@ export default function QuizScreen() {
               style={({ pressed }) => [styles.btn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
             >
               <Feather name="refresh-cw" size={18} color="#fff" />
-              <Text style={styles.btnText}>Try Again</Text>
+              <Text style={styles.btnText}>Play Again</Text>
             </Pressable>
             <Pressable
               onPress={() => router.back()}
               style={({ pressed }) => [styles.btnOutline, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
             >
-              <Text style={[styles.btnOutlineText, { color: colors.foreground }]}>Back</Text>
+              <Text style={[styles.btnOutlineText, { color: colors.foreground }]}>Back to Dashboard</Text>
             </Pressable>
           </View>
         </View>
@@ -266,6 +315,10 @@ export default function QuizScreen() {
       </View>
     );
   }
+
+  const progressLabel = isInfinity
+    ? `Q${currentIdx + 1}`
+    : `${currentIdx + 1} / ${totalQuestions}`;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -276,8 +329,11 @@ export default function QuizScreen() {
           </Pressable>
           <View style={styles.progressInfo}>
             <Text style={[styles.progressText, { color: colors.mutedForeground }]}>
-              {currentIdx + 1} / {totalQuestions}
+              {progressLabel}
             </Text>
+            {isInfinity && (
+              <Feather name="infinity" size={14} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
+            )}
           </View>
           <View style={styles.scoreRow}>
             <Feather name="check" size={16} color={colors.success} />
@@ -338,7 +394,7 @@ const styles = StyleSheet.create({
   quizWrap: { flex: 1, paddingBottom: 8, gap: 10 },
   topBar: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 8 },
   backBtn: { padding: 6 },
-  progressInfo: { flex: 1, alignItems: "center" },
+  progressInfo: { flex: 1, alignItems: "center", flexDirection: "row", justifyContent: "center" },
   progressText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   scoreRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   scoreNum: { fontSize: 16, fontFamily: "Inter_700Bold", marginRight: 4 },
@@ -354,7 +410,10 @@ const styles = StyleSheet.create({
   doneWrap: { flex: 1, paddingHorizontal: 16, justifyContent: "center" },
   doneCard: { borderRadius: 20, borderWidth: 1, padding: 28, gap: 12 },
   doneTitle: { fontSize: 28, fontFamily: "Inter_700Bold", textAlign: "center" },
-  doneMode: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+  doneModeRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 6 },
+  doneMode: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  infinityBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  infinityBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
   doneStats: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 16 },
   doneStat: { alignItems: "center", flex: 1 },
   doneStatVal: { fontSize: 26, fontFamily: "Inter_700Bold" },

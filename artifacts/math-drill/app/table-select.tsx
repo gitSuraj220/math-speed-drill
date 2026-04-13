@@ -166,7 +166,9 @@ export default function TableSelectScreen() {
           ]}
         >
           <Feather name="zap" size={20} color="#fff" />
-          <Text style={styles.startBtnText}>Start Drill · {count} Questions</Text>
+          <Text style={styles.startBtnText}>
+            {count === 0 ? "Start Drill · ∞ Mode" : `Start Drill · ${count} Questions`}
+          </Text>
         </Pressable>
       </ScrollView>
 

@@ -190,7 +190,7 @@ export default function SquareCubeSelectScreen() {
         <View style={[styles.summaryCard, { backgroundColor: "#f3e8ff", borderColor: "#d8b4fe" }]}>
           <Feather name="info" size={16} color="#7c3aed" />
           <Text style={[styles.summaryText, { color: "#5b21b6" }]}>
-            {count} questions · {drillType === "mixed" ? "Squares + Cubes" : drillType === "squares" ? "Squares only" : "Cubes only"}
+            {count === 0 ? "∞ Infinity mode" : `${count} questions`} · {drillType === "mixed" ? "Squares + Cubes" : drillType === "squares" ? "Squares only" : "Cubes only"}
           </Text>
         </View>
 
@@ -202,7 +202,9 @@ export default function SquareCubeSelectScreen() {
           ]}
         >
           <Feather name="zap" size={20} color="#fff" />
-          <Text style={styles.startBtnText}>Start Drill</Text>
+          <Text style={styles.startBtnText}>
+            {count === 0 ? "Start Drill · ∞ Mode" : `Start Drill · ${count} Questions`}
+          </Text>
         </Pressable>
       </ScrollView>
 
