@@ -21,6 +21,7 @@ import {
   getCubeQuestions,
   getSquareQuestions,
   getTableQuestions,
+  getTableQuestionsForRange,
 } from "@/utils/mathData";
 
 const TOTAL_QUESTIONS = 10;
@@ -28,14 +29,28 @@ const QUESTION_TIME = 25;
 
 type Mode = "tables" | "squarecube" | "addition";
 
-function getModeLabel(mode: Mode) {
-  if (mode === "tables") return "Table Master";
+function getModeLabel(mode: Mode, from?: number, to?: number) {
+  if (mode === "tables") {
+    if (from && to) {
+      return from === to ? `Table of ${from}` : `Tables ${from}–${to}`;
+    }
+    return "Table Master";
+  }
   if (mode === "squarecube") return "Square / Cube";
   return "Lightning Addition";
 }
 
-function getQuestions(mode: Mode): Question[] {
-  if (mode === "tables") return getTableQuestions(TOTAL_QUESTIONS);
+function getQuestions(
+  mode: Mode,
+  tableFrom?: number,
+  tableTo?: number
+): Question[] {
+  if (mode === "tables") {
+    if (tableFrom !== undefined && tableTo !== undefined) {
+      return getTableQuestionsForRange(tableFrom, tableTo, TOTAL_QUESTIONS);
+    }
+    return getTableQuestions(TOTAL_QUESTIONS);
+  }
   if (mode === "squarecube") {
     const sq = getSquareQuestions(5);
     const cb = getCubeQuestions(5);
@@ -45,27 +60,40 @@ function getQuestions(mode: Mode): Question[] {
 }
 
 export default function QuizScreen() {
-  const params = useLocalSearchParams<{ mode: string }>();
+  const params = useLocalSearchParams<{
+    mode: string;
+    tableFrom?: string;
+    tableTo?: string;
+  }>();
   const mode = (params.mode as Mode) || "tables";
+  const tableFrom = params.tableFrom ? parseInt(params.tableFrom, 10) : undefined;
+  const tableTo = params.tableTo ? parseInt(params.tableTo, 10) : undefined;
+
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { addSession } = useStats();
 
-  const [questions] = useState<Question[]>(() => getQuestions(mode));
+  const [questions] = useState<Question[]>(() =>
+    getQuestions(mode, tableFrom, tableTo)
+  );
   const [currentIdx, setCurrentIdx] = useState(0);
   const [input, setInput] = useState("");
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIME);
-  const [phase, setPhase] = useState<"question" | "result" | "done">("question");
+  const [phase, setPhase] = useState<"question" | "result" | "done">(
+    "question"
+  );
   const [lastCorrect, setLastCorrect] = useState(false);
   const [correct, setCorrect] = useState(0);
   const [incorrect, setIncorrect] = useState(0);
   const [answerTimes, setAnswerTimes] = useState<number[]>([]);
   const questionStartRef = useRef(Date.now());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoSubmitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentQ = questions[currentIdx];
   const progress = timeLeft / QUESTION_TIME;
+  const modeLabel = getModeLabel(mode, tableFrom, tableTo);
 
   const stopTimer = useCallback(() => {
     if (timerRef.current) {
@@ -93,7 +121,13 @@ export default function QuizScreen() {
       questionStartRef.current = Date.now();
       startTimer();
     }
-    return stopTimer;
+    return () => {
+      stopTimer();
+      if (autoSubmitRef.current) {
+        clearTimeout(autoSubmitRef.current);
+        autoSubmitRef.current = null;
+      }
+    };
   }, [phase, currentIdx]);
 
   useEffect(() => {
@@ -103,10 +137,14 @@ export default function QuizScreen() {
   }, [timeLeft, phase]);
 
   const handleSubmit = useCallback(
-    (timeout = false) => {
+    (timeout = false, forcedInput?: string) => {
+      if (autoSubmitRef.current) {
+        clearTimeout(autoSubmitRef.current);
+        autoSubmitRef.current = null;
+      }
       stopTimer();
       const elapsed = Date.now() - questionStartRef.current;
-      const userAnswer = timeout ? "" : input;
+      const userAnswer = timeout ? "" : (forcedInput ?? input);
       const isCorrect =
         !timeout && parseInt(userAnswer, 10) === currentQ.answer;
 
@@ -121,6 +159,7 @@ export default function QuizScreen() {
 
       setPhase("result");
 
+      const delay = isCorrect ? 800 : 1400;
       setTimeout(async () => {
         if (currentIdx + 1 >= TOTAL_QUESTIONS) {
           const totalTime = [...answerTimes, elapsed];
@@ -128,7 +167,7 @@ export default function QuizScreen() {
             totalTime.reduce((a, b) => a + b, 0) / totalTime.length
           );
           await addSession({
-            mode: getModeLabel(mode),
+            mode: modeLabel,
             correct: isCorrect ? correct + 1 : correct,
             incorrect: isCorrect ? incorrect : incorrect + 1,
             avgTimeMs: avg,
@@ -139,10 +178,46 @@ export default function QuizScreen() {
           setInput("");
           setPhase("question");
         }
-      }, 1200);
+      }, delay);
     },
-    [input, currentQ, currentIdx, correct, incorrect, answerTimes, mode, addSession, stopTimer]
+    [
+      input,
+      currentQ,
+      currentIdx,
+      correct,
+      incorrect,
+      answerTimes,
+      modeLabel,
+      addSession,
+      stopTimer,
+    ]
   );
+
+  const handleDigit = useCallback(
+    (digit: string) => {
+      if (phase !== "question") return;
+      setInput((prev) => {
+        if (prev.length >= 8) return prev;
+        const newInput = prev + digit;
+        if (parseInt(newInput, 10) === currentQ.answer) {
+          if (autoSubmitRef.current) clearTimeout(autoSubmitRef.current);
+          autoSubmitRef.current = setTimeout(() => {
+            handleSubmit(false, newInput);
+          }, 300);
+        }
+        return newInput;
+      });
+    },
+    [phase, currentQ, handleSubmit]
+  );
+
+  const handleDelete = useCallback(() => {
+    if (autoSubmitRef.current) {
+      clearTimeout(autoSubmitRef.current);
+      autoSubmitRef.current = null;
+    }
+    setInput((prev) => prev.slice(0, -1));
+  }, []);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -152,7 +227,9 @@ export default function QuizScreen() {
     const acc = total > 0 ? Math.round((correct / total) * 100) : 0;
     const avgMs =
       answerTimes.length > 0
-        ? Math.round(answerTimes.reduce((a, b) => a + b, 0) / answerTimes.length / 1000)
+        ? Math.round(
+            answerTimes.reduce((a, b) => a + b, 0) / answerTimes.length / 1000
+          )
         : 0;
 
     return (
@@ -168,7 +245,7 @@ export default function QuizScreen() {
               Session Complete
             </Text>
             <Text style={[styles.doneMode, { color: colors.mutedForeground }]}>
-              {getModeLabel(mode)}
+              {modeLabel}
             </Text>
 
             <View style={styles.doneStats}>
@@ -177,7 +254,10 @@ export default function QuizScreen() {
                   {correct}
                 </Text>
                 <Text
-                  style={[styles.doneStatLabel, { color: colors.mutedForeground }]}
+                  style={[
+                    styles.doneStatLabel,
+                    { color: colors.mutedForeground },
+                  ]}
                 >
                   Correct
                 </Text>
@@ -189,7 +269,10 @@ export default function QuizScreen() {
                   {incorrect}
                 </Text>
                 <Text
-                  style={[styles.doneStatLabel, { color: colors.mutedForeground }]}
+                  style={[
+                    styles.doneStatLabel,
+                    { color: colors.mutedForeground },
+                  ]}
                 >
                   Wrong
                 </Text>
@@ -201,19 +284,23 @@ export default function QuizScreen() {
                   {acc}%
                 </Text>
                 <Text
-                  style={[styles.doneStatLabel, { color: colors.mutedForeground }]}
+                  style={[
+                    styles.doneStatLabel,
+                    { color: colors.mutedForeground },
+                  ]}
                 >
                   Accuracy
                 </Text>
               </View>
               <View style={styles.doneStat}>
-                <Text
-                  style={[styles.doneStatVal, { color: colors.primary }]}
-                >
+                <Text style={[styles.doneStatVal, { color: colors.primary }]}>
                   {avgMs}s
                 </Text>
                 <Text
-                  style={[styles.doneStatLabel, { color: colors.mutedForeground }]}
+                  style={[
+                    styles.doneStatLabel,
+                    { color: colors.mutedForeground },
+                  ]}
                 >
                   Avg. Time
                 </Text>
@@ -221,10 +308,22 @@ export default function QuizScreen() {
             </View>
 
             <Pressable
-              onPress={() => router.replace({ pathname: "/quiz", params: { mode } })}
+              onPress={() =>
+                router.replace({
+                  pathname: "/quiz",
+                  params: {
+                    mode,
+                    ...(tableFrom !== undefined ? { tableFrom: String(tableFrom) } : {}),
+                    ...(tableTo !== undefined ? { tableTo: String(tableTo) } : {}),
+                  },
+                })
+              }
               style={({ pressed }) => [
                 styles.btn,
-                { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
+                {
+                  backgroundColor: colors.primary,
+                  opacity: pressed ? 0.8 : 1,
+                },
               ]}
             >
               <Feather name="refresh-cw" size={18} color="#fff" />
@@ -241,8 +340,13 @@ export default function QuizScreen() {
                 },
               ]}
             >
-              <Text style={[styles.btnOutlineText, { color: colors.foreground }]}>
-                Back to Dashboard
+              <Text
+                style={[
+                  styles.btnOutlineText,
+                  { color: colors.foreground },
+                ]}
+              >
+                Back
               </Text>
             </Pressable>
           </View>
@@ -257,21 +361,30 @@ export default function QuizScreen() {
       <View style={[styles.quizContainer, { paddingTop: topPad + 8 }]}>
         <View style={styles.topBar}>
           <Pressable
-            onPress={() => { stopTimer(); router.back(); }}
+            onPress={() => {
+              stopTimer();
+              router.back();
+            }}
             style={styles.backBtn}
           >
             <Feather name="x" size={22} color={colors.mutedForeground} />
           </Pressable>
           <View style={styles.progressInfo}>
-            <Text style={[styles.progressText, { color: colors.mutedForeground }]}>
+            <Text
+              style={[styles.progressText, { color: colors.mutedForeground }]}
+            >
               {currentIdx + 1} / {TOTAL_QUESTIONS}
             </Text>
           </View>
           <View style={styles.scoreRow}>
             <Feather name="check" size={16} color={colors.success} />
-            <Text style={[styles.scoreNum, { color: colors.success }]}>{correct}</Text>
+            <Text style={[styles.scoreNum, { color: colors.success }]}>
+              {correct}
+            </Text>
             <Feather name="x" size={16} color={colors.destructive} />
-            <Text style={[styles.scoreNum, { color: colors.destructive }]}>{incorrect}</Text>
+            <Text style={[styles.scoreNum, { color: colors.destructive }]}>
+              {incorrect}
+            </Text>
           </View>
         </View>
 
@@ -284,7 +397,7 @@ export default function QuizScreen() {
 
         <View style={styles.questionArea}>
           <Text style={[styles.modeLabel, { color: colors.mutedForeground }]}>
-            {getModeLabel(mode).toUpperCase()}
+            {modeLabel.toUpperCase()}
           </Text>
           <Text style={[styles.questionText, { color: colors.foreground }]}>
             {currentQ.question}
@@ -302,12 +415,18 @@ export default function QuizScreen() {
             <Text
               style={[
                 styles.inputText,
-                { color: input ? colors.foreground : colors.mutedForeground },
+                {
+                  color: input ? colors.foreground : colors.mutedForeground,
+                },
               ]}
             >
               {input || "—"}
             </Text>
           </View>
+
+          <Text style={[styles.autoHint, { color: colors.mutedForeground }]}>
+            Auto-submits on correct answer
+          </Text>
         </View>
 
         {phase === "result" ? (
@@ -320,8 +439,8 @@ export default function QuizScreen() {
           </View>
         ) : (
           <NumberPad
-            onPress={(d) => setInput((prev) => (prev.length < 8 ? prev + d : prev))}
-            onDelete={() => setInput((prev) => prev.slice(0, -1))}
+            onPress={handleDigit}
+            onDelete={handleDelete}
             onSubmit={() => handleSubmit(false)}
             disabled={phase !== "question"}
           />
@@ -385,7 +504,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
-    gap: 16,
+    gap: 12,
   },
   modeLabel: {
     fontSize: 11,
@@ -410,6 +529,11 @@ const styles = StyleSheet.create({
   inputText: {
     fontSize: 32,
     fontFamily: "Inter_600SemiBold",
+  },
+  autoHint: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    letterSpacing: 0.3,
   },
   resultArea: {
     paddingBottom: 8,

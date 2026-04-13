@@ -29,9 +29,18 @@ export interface Question {
 }
 
 export function getTableQuestions(count: number = 10): Question[] {
+  return getTableQuestionsForRange(1, 50, count);
+}
+
+export function getTableQuestionsForRange(
+  from: number,
+  to: number,
+  count: number = 10
+): Question[] {
   const questions: Question[] = [];
+  const rangeSize = to - from + 1;
   for (let i = 0; i < count; i++) {
-    const base = Math.ceil(Math.random() * 50);
+    const base = from + Math.floor(Math.random() * rangeSize);
     const multiplier = Math.ceil(Math.random() * 10);
     questions.push({
       question: `${base} × ${multiplier} = ?`,

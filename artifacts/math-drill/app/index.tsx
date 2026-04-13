@@ -121,7 +121,7 @@ export default function Dashboard() {
           subtitle="Multiplication Tables  ·  1–50"
           icon="grid"
           color={colors.tableMaster}
-          onPress={() => router.push({ pathname: "/quiz", params: { mode: "tables" } })}
+          onPress={() => router.push("/table-select")}
         />
         <ModeCard
           title="Square / Cube Drill"
