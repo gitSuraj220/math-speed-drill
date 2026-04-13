@@ -86,6 +86,10 @@ export default function StatsScreen() {
       : 0;
 
   const handleClear = () => {
+    if (Platform.OS === "web") {
+      if (window.confirm("Delete all session history?")) clearStats();
+      return;
+    }
     Alert.alert("Clear Stats", "Delete all session history?", [
       { text: "Cancel", style: "cancel" },
       { text: "Clear", style: "destructive", onPress: clearStats },

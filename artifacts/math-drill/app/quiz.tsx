@@ -196,6 +196,11 @@ export default function QuizScreen() {
   }, []);
 
   const handleCancel = useCallback(() => {
+    if (Platform.OS === "web") {
+      stopTimer();
+      router.back();
+      return;
+    }
     Alert.alert("Exit Drill", "Are you sure you want to exit?", [
       { text: "Keep Going", style: "cancel" },
       { text: "Exit", style: "destructive", onPress: () => { stopTimer(); router.back(); } },
