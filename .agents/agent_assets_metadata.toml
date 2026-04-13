@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "vWRA_xftcuTGEVsJf5kqe"
+uri = "file://artifacts/math-drill/assets/images/icon.png"
+type = "image"
+title = "math drill icon"
