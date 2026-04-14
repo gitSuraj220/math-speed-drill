@@ -1,0 +1,6 @@
+{
+  "installCommand": "npm install -g pnpm && pnpm install",
+  "buildCommand": "cd artifacts/math-drill && pnpm run build:web",
+  "outputDirectory": "artifacts/math-drill/dist",
+  "framework": null
+}
