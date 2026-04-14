@@ -22,14 +22,18 @@ import {
   getCubeQuestionsForRange,
   getSquareQuestionsForRange,
   getTableQuestionsForRange,
+  getFractionToPercentQuestions,
+  getPercentToFractionQuestions,
+  getFractionMixedQuestions,
 } from "@/utils/mathData";
 
 const QUESTION_TIME = 25;
 const INFINITY_BATCH = 30;
 const INFINITY_REFILL_AT = 8;
 
-type Mode = "tables" | "squarecube" | "addition";
+type Mode = "tables" | "squarecube" | "addition" | "fraction";
 type DrillType = "squares" | "cubes" | "mixed";
+type FractionMode = "frac_to_pct" | "pct_to_frac" | "mixed";
 
 function getModeLabel(mode: Mode, params: Record<string, string | undefined>) {
   if (mode === "tables") {
@@ -43,6 +47,12 @@ function getModeLabel(mode: Mode, params: Record<string, string | undefined>) {
     if (dt === "squares") return "Squares Drill";
     if (dt === "cubes") return "Cubes Drill";
     return "Square / Cube";
+  }
+  if (mode === "fraction") {
+    const fm = (params.fractionMode as FractionMode) || "frac_to_pct";
+    if (fm === "frac_to_pct") return "Fraction → %";
+    if (fm === "pct_to_frac") return "% → Fraction";
+    return "Fraction % Mixed";
   }
   return "Lightning Addition";
 }
@@ -71,17 +81,33 @@ function buildBatch(
       ...getCubeQuestionsForRange(cbFrom, cbTo, count - half),
     ].sort(() => Math.random() - 0.5);
   }
+  if (mode === "fraction") {
+    const fm = (params.fractionMode as FractionMode) || "frac_to_pct";
+    if (fm === "frac_to_pct") return getFractionToPercentQuestions(count);
+    if (fm === "pct_to_frac") return getPercentToFractionQuestions(count);
+    return getFractionMixedQuestions(count);
+  }
   return getAdditionQuestions(count);
+}
+
+function isAnswerCorrect(q: Question, userInput: string): boolean {
+  if (!userInput || userInput === ".") return false;
+  const userVal = parseFloat(userInput);
+  if (isNaN(userVal)) return false;
+  const tolerance = q.tolerance ?? 0;
+  return Math.abs(userVal - q.answer) <= tolerance;
 }
 
 export default function QuizScreen() {
   const rawParams = useLocalSearchParams<Record<string, string>>();
   const mode = (rawParams.mode as Mode) || "tables";
-  const parsedCount = rawParams.questionCount
-    ? parseInt(rawParams.questionCount, 10)
-    : 10;
+  const fractionMode = (rawParams.fractionMode as FractionMode) || "frac_to_pct";
+  const parsedCount = rawParams.questionCount ? parseInt(rawParams.questionCount, 10) : 10;
   const isInfinity = parsedCount === 0;
   const totalQuestions = isInfinity ? 0 : Math.max(10, Math.min(50, parsedCount));
+
+  const showDecimal =
+    mode === "fraction" && (fractionMode === "frac_to_pct" || fractionMode === "mixed");
 
   const router = useRouter();
   const colors = useColors();
@@ -164,7 +190,7 @@ export default function QuizScreen() {
       stopTimer();
       const elapsed = Date.now() - questionStartRef.current;
       const userAnswer = timeout ? "" : (forcedInput ?? input);
-      const isCorrect = !timeout && parseInt(userAnswer, 10) === currentQ.answer;
+      const isCorrect = !timeout && isAnswerCorrect(currentQ, userAnswer);
 
       const newCorrect = isCorrect ? correct + 1 : correct;
       const newIncorrect = isCorrect ? incorrect : incorrect + 1;
@@ -195,9 +221,11 @@ export default function QuizScreen() {
     (digit: string) => {
       if (phase !== "question") return;
       setInput((prev) => {
+        if (digit === "." && prev.includes(".")) return prev;
+        if (digit === "." && prev === "") return "0.";
         if (prev.length >= 8) return prev;
         const newInput = prev + digit;
-        if (parseInt(newInput, 10) === currentQ.answer) {
+        if (digit !== "." && isAnswerCorrect(currentQ, newInput)) {
           if (autoSubmitRef.current) clearTimeout(autoSubmitRef.current);
           autoSubmitRef.current = setTimeout(() => handleSubmit(false, newInput), 300);
         }
@@ -240,7 +268,6 @@ export default function QuizScreen() {
   }, [isInfinity, doExit]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   if (phase === "done") {
     const total = correct + incorrect;
@@ -261,33 +288,38 @@ export default function QuizScreen() {
     if (rawParams.sqTo) retryParams.sqTo = rawParams.sqTo;
     if (rawParams.cbFrom) retryParams.cbFrom = rawParams.cbFrom;
     if (rawParams.cbTo) retryParams.cbTo = rawParams.cbTo;
+    if (rawParams.fractionMode) retryParams.fractionMode = rawParams.fractionMode;
+
+    const accent =
+      mode === "fraction" ? colors.fractionPct
+      : mode === "squarecube" ? colors.squareCube
+      : mode === "addition" ? colors.lightning
+      : colors.primary;
 
     return (
       <View style={[styles.root, { backgroundColor: colors.background }]}>
-        <View style={[styles.doneWrap, { paddingTop: topPad + 24, paddingBottom: bottomPad + 8 }]}>
+        <View style={[styles.doneWrap, { paddingTop: topPad + 24, paddingBottom: 24 }]}>
           <View style={[styles.doneCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.doneTitle, { color: colors.primary }]}>Session Complete</Text>
+            <View style={[styles.doneIconWrap, { backgroundColor: accent + "20" }]}>
+              <Feather name="check-circle" size={36} color={accent} />
+            </View>
+            <Text style={[styles.doneTitle, { color: colors.foreground }]}>Session Complete</Text>
             <View style={styles.doneModeRow}>
               <Text style={[styles.doneMode, { color: colors.mutedForeground }]}>{modeLabel}</Text>
               {isInfinity && (
-                <View style={[styles.infinityBadge, { backgroundColor: colors.primary }]}>
-                  <Feather name="infinity" size={12} color="#fff" />
+                <View style={[styles.infinityBadge, { backgroundColor: accent }]}>
+                  <Feather name="infinity" size={11} color="#fff" />
                   <Text style={styles.infinityBadgeText}>{total} answered</Text>
                 </View>
               )}
-              {!isInfinity && (
-                <Text style={[styles.doneMode, { color: colors.mutedForeground }]}>
-                  {" · "}{totalQuestions} Questions
-                </Text>
-              )}
             </View>
 
-            <View style={styles.doneStats}>
+            <View style={[styles.doneStats, { borderColor: colors.border }]}>
               {[
                 { val: correct, label: "Correct", color: colors.success },
                 { val: incorrect, label: "Wrong", color: colors.destructive },
-                { val: `${acc}%`, label: "Accuracy", color: colors.secondary },
-                { val: `${avgSec}s`, label: "Avg Time", color: colors.primary },
+                { val: `${acc}%`, label: "Accuracy", color: accent },
+                { val: `${avgSec}s`, label: "Avg Time", color: colors.mutedForeground },
               ].map((s) => (
                 <View key={s.label} style={styles.doneStat}>
                   <Text style={[styles.doneStatVal, { color: s.color }]}>{s.val}</Text>
@@ -298,7 +330,7 @@ export default function QuizScreen() {
 
             <Pressable
               onPress={() => router.replace({ pathname: "/quiz", params: retryParams })}
-              style={({ pressed }) => [styles.btn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+              style={({ pressed }) => [styles.btn, { backgroundColor: accent, opacity: pressed ? 0.8 : 1 }]}
             >
               <Feather name="refresh-cw" size={18} color="#fff" />
               <Text style={styles.btnText}>Play Again</Text>
@@ -307,7 +339,7 @@ export default function QuizScreen() {
               onPress={() => router.back()}
               style={({ pressed }) => [styles.btnOutline, { borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
             >
-              <Text style={[styles.btnOutlineText, { color: colors.foreground }]}>Back to Dashboard</Text>
+              <Text style={[styles.btnOutlineText, { color: colors.mutedForeground }]}>Back to Dashboard</Text>
             </Pressable>
           </View>
         </View>
@@ -316,9 +348,12 @@ export default function QuizScreen() {
     );
   }
 
-  const progressLabel = isInfinity
-    ? `Q${currentIdx + 1}`
-    : `${currentIdx + 1} / ${totalQuestions}`;
+  const progressLabel = isInfinity ? `Q${currentIdx + 1}` : `${currentIdx + 1} / ${totalQuestions}`;
+  const modeAccent =
+    mode === "fraction" ? colors.fractionPct
+    : mode === "squarecube" ? colors.squareCube
+    : mode === "addition" ? colors.lightning
+    : colors.primary;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -332,7 +367,7 @@ export default function QuizScreen() {
               {progressLabel}
             </Text>
             {isInfinity && (
-              <Feather name="infinity" size={14} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
+              <Feather name="infinity" size={13} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
             )}
           </View>
           <View style={styles.scoreRow}>
@@ -349,25 +384,40 @@ export default function QuizScreen() {
         </View>
 
         <View style={styles.questionArea}>
-          <Text style={[styles.modeLabel, { color: colors.mutedForeground }]}>
+          <Text style={[styles.modeLabel, { color: modeAccent }]}>
             {modeLabel.toUpperCase()}
           </Text>
           <Text style={[styles.questionText, { color: colors.foreground }]}>
             {currentQ.question}
           </Text>
+          {currentQ.hint && (
+            <Text style={[styles.hintText, { color: colors.mutedForeground }]}>
+              {currentQ.hint}
+            </Text>
+          )}
           <View
             style={[
               styles.inputDisplay,
-              { backgroundColor: colors.card, borderColor: input ? colors.primary : colors.border },
+              {
+                backgroundColor: colors.card,
+                borderColor: input ? modeAccent : colors.border,
+              },
             ]}
           >
             <Text style={[styles.inputText, { color: input ? colors.foreground : colors.mutedForeground }]}>
               {input || "—"}
             </Text>
           </View>
-          <Text style={[styles.autoHint, { color: colors.mutedForeground }]}>
-            Auto-submits on correct answer
-          </Text>
+          {!showDecimal && (
+            <Text style={[styles.autoHint, { color: colors.mutedForeground }]}>
+              Auto-submits on correct answer
+            </Text>
+          )}
+          {showDecimal && (
+            <Text style={[styles.autoHint, { color: colors.mutedForeground }]}>
+              Use · for decimal point  ·  25s timer
+            </Text>
+          )}
         </View>
 
         {phase === "result" ? (
@@ -381,6 +431,7 @@ export default function QuizScreen() {
             onClear={handleClear}
             onCancel={handleCancel}
             disabled={phase !== "question"}
+            showDecimal={showDecimal}
           />
         )}
       </View>
@@ -400,26 +451,35 @@ const styles = StyleSheet.create({
   scoreNum: { fontSize: 16, fontFamily: "Inter_700Bold", marginRight: 4 },
   timerRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16 },
   timerText: { fontSize: 13, fontFamily: "Inter_500Medium", width: 28, textAlign: "right" },
-  questionArea: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 12 },
+  questionArea: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 10 },
   modeLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 1.5, textTransform: "uppercase" },
-  questionText: { fontSize: 40, fontFamily: "Inter_700Bold", textAlign: "center", letterSpacing: -0.5 },
+  questionText: { fontSize: 38, fontFamily: "Inter_700Bold", textAlign: "center", letterSpacing: -0.5 },
+  hintText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   inputDisplay: { minWidth: 140, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 14, borderWidth: 2, alignItems: "center" },
   inputText: { fontSize: 32, fontFamily: "Inter_600SemiBold" },
   autoHint: { fontSize: 11, fontFamily: "Inter_400Regular", letterSpacing: 0.3 },
   resultArea: { paddingBottom: 8 },
   doneWrap: { flex: 1, paddingHorizontal: 16, justifyContent: "center" },
-  doneCard: { borderRadius: 20, borderWidth: 1, padding: 28, gap: 12 },
-  doneTitle: { fontSize: 28, fontFamily: "Inter_700Bold", textAlign: "center" },
-  doneModeRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 6 },
+  doneCard: { borderRadius: 24, borderWidth: 1, padding: 28, gap: 14, alignItems: "center" },
+  doneIconWrap: { width: 72, height: 72, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  doneTitle: { fontSize: 26, fontFamily: "Inter_700Bold" },
+  doneModeRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 },
   doneMode: { fontSize: 13, fontFamily: "Inter_400Regular" },
   infinityBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   infinityBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  doneStats: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 16 },
+  doneStats: {
+    flexDirection: "row",
+    width: "100%",
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    paddingVertical: 16,
+    marginVertical: 4,
+  },
   doneStat: { alignItems: "center", flex: 1 },
-  doneStatVal: { fontSize: 26, fontFamily: "Inter_700Bold" },
+  doneStatVal: { fontSize: 24, fontFamily: "Inter_700Bold" },
   doneStatLabel: { fontSize: 10, fontFamily: "Inter_400Regular", marginTop: 4, textTransform: "uppercase", letterSpacing: 0.5 },
-  btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 14 },
+  btn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 14, width: "100%" },
   btnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#ffffff" },
-  btnOutline: { alignItems: "center", justifyContent: "center", paddingVertical: 14, borderRadius: 14, borderWidth: 1 },
-  btnOutlineText: { fontSize: 15, fontFamily: "Inter_500Medium" },
+  btnOutline: { alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: 14, borderWidth: 1, width: "100%" },
+  btnOutlineText: { fontSize: 14, fontFamily: "Inter_500Medium" },
 });

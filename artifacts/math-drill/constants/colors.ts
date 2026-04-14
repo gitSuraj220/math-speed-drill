@@ -1,25 +1,25 @@
 const colors = {
   light: {
-    text: "#0f172a",
-    tint: "#f97316",
+    text: "#eef2f7",
+    tint: "#4f8ef7",
 
-    background: "#f8fafc",
-    foreground: "#0f172a",
+    background: "#0d0f14",
+    foreground: "#eef2f7",
 
-    card: "#ffffff",
-    cardForeground: "#0f172a",
+    card: "#181c24",
+    cardForeground: "#eef2f7",
 
-    primary: "#1e3a5f",
+    primary: "#4f8ef7",
     primaryForeground: "#ffffff",
 
     secondary: "#f97316",
     secondaryForeground: "#ffffff",
 
-    muted: "#e2e8f0",
-    mutedForeground: "#64748b",
+    muted: "#1e2330",
+    mutedForeground: "#6b7a99",
 
-    accent: "#fef3c7",
-    accentForeground: "#92400e",
+    accent: "#2a1f05",
+    accentForeground: "#fbbf24",
 
     destructive: "#ef4444",
     destructiveForeground: "#ffffff",
@@ -27,19 +27,20 @@ const colors = {
     success: "#22c55e",
     successForeground: "#ffffff",
 
-    border: "#e2e8f0",
-    input: "#e2e8f0",
+    border: "#252c3d",
+    input: "#252c3d",
 
-    tableMaster: "#1e3a5f",
-    squareCube: "#7c3aed",
-    lightning: "#f97316",
-    stats: "#059669",
+    tableMaster: "#1e4d8c",
+    squareCube: "#6d28d9",
+    lightning: "#c2410c",
+    stats: "#047857",
+    fractionPct: "#be185d",
 
     timerBar: "#22c55e",
     timerBarWarning: "#f59e0b",
     timerBarDanger: "#ef4444",
 
-    adPlaceholder: "#e5e7eb",
+    adPlaceholder: "#1e2330",
   },
 
   radius: 12,

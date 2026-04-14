@@ -1,6 +1,8 @@
 export interface Question {
   question: string;
   answer: number;
+  tolerance?: number;
+  hint?: string;
 }
 
 export function getTableQuestionsForRange(
@@ -77,4 +79,60 @@ export function getAdditionQuestions(count: number = 10): Question[] {
     const b = Math.floor(Math.random() * 9000) + 1000;
     return { question: `${a} + ${b} = ?`, answer: a + b };
   });
+}
+
+interface FractionEntry {
+  num: number;
+  den: number;
+  pct: number;
+  pctStr: string;
+}
+
+function buildFractionTable(): FractionEntry[] {
+  const entries: FractionEntry[] = [];
+  for (let d = 1; d <= 16; d++) {
+    for (let n = 1; n <= Math.min(d, 10); n++) {
+      const raw = (n / d) * 100;
+      const pct = Math.floor(raw * 100) / 100;
+      const pctStr =
+        Number.isInteger(pct) ? `${pct}` : pct.toFixed(2);
+      entries.push({ num: n, den: d, pct, pctStr });
+    }
+  }
+  return entries;
+}
+
+const FRACTION_TABLE = buildFractionTable();
+
+export function getFractionToPercentQuestions(count: number): Question[] {
+  return Array.from({ length: count }, () => {
+    const e = FRACTION_TABLE[Math.floor(Math.random() * FRACTION_TABLE.length)];
+    const isInteger = Number.isInteger(e.pct);
+    return {
+      question: `${e.num} / ${e.den}  =  ? %`,
+      answer: e.pct,
+      tolerance: 0.5,
+      hint: isInteger ? "Whole number" : "e.g. 33.33",
+    };
+  });
+}
+
+export function getPercentToFractionQuestions(count: number): Question[] {
+  return Array.from({ length: count }, () => {
+    const e = FRACTION_TABLE[Math.floor(Math.random() * FRACTION_TABLE.length)];
+    return {
+      question: `? / ${e.den}  =  ${e.pctStr}%`,
+      answer: e.num,
+      tolerance: 0,
+      hint: "Enter numerator",
+    };
+  });
+}
+
+export function getFractionMixedQuestions(count: number): Question[] {
+  const half = Math.ceil(count / 2);
+  return [
+    ...getFractionToPercentQuestions(half),
+    ...getPercentToFractionQuestions(count - half),
+  ].sort(() => Math.random() - 0.5);
 }

@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import React from "react";
 import {
+  Dimensions,
   Platform,
   Pressable,
   ScrollView,
@@ -14,32 +15,46 @@ import { useColors } from "@/hooks/useColors";
 import { useStats } from "@/context/StatsContext";
 import { AdBanner } from "@/components/AdBanner";
 
-interface ModeCardProps {
+const { width: SCREEN_W } = Dimensions.get("window");
+const CARD_SIZE = (SCREEN_W - 48) / 2;
+
+interface DrillCard {
   title: string;
   subtitle: string;
   icon: keyof typeof Feather.glyphMap;
   color: string;
+  badge?: string;
   onPress: () => void;
 }
 
-function ModeCard({ title, subtitle, icon, color, onPress }: ModeCardProps) {
+function GridCard({ title, subtitle, icon, color, badge, onPress }: DrillCard) {
   const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
-        styles.card,
-        { backgroundColor: color, opacity: pressed ? 0.85 : 1 },
+        styles.gridCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          width: CARD_SIZE,
+          height: CARD_SIZE,
+          opacity: pressed ? 0.8 : 1,
+        },
       ]}
     >
-      <View style={styles.cardIcon}>
-        <Feather name={icon} size={32} color="#ffffff" />
+      {badge && (
+        <View style={[styles.badge, { backgroundColor: color }]}>
+          <Text style={styles.badgeText}>{badge}</Text>
+        </View>
+      )}
+      <View style={[styles.cardIconWrap, { backgroundColor: color + "30" }]}>
+        <Feather name={icon} size={30} color={color} />
       </View>
-      <View style={styles.cardText}>
-        <Text style={styles.cardTitle}>{title}</Text>
-        <Text style={styles.cardSubtitle}>{subtitle}</Text>
-      </View>
-      <Feather name="chevron-right" size={22} color="rgba(255,255,255,0.7)" />
+      <Text style={[styles.cardTitle, { color: colors.foreground }]}>{title}</Text>
+      <Text style={[styles.cardSub, { color: colors.mutedForeground }]} numberOfLines={2}>
+        {subtitle}
+      </Text>
     </Pressable>
   );
 }
@@ -51,99 +66,102 @@ export default function Dashboard() {
   const { sessions } = useStats();
 
   const totalCorrect = sessions.reduce((s, r) => s + r.correct, 0);
-  const totalQuestions = sessions.reduce(
-    (s, r) => s + r.correct + r.incorrect,
-    0
-  );
-  const accuracy =
-    totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+  const totalQ = sessions.reduce((s, r) => s + r.correct + r.incorrect, 0);
+  const accuracy = totalQ > 0 ? Math.round((totalCorrect / totalQ) * 100) : 0;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const drills: DrillCard[] = [
+    {
+      title: "TABLE MASTER",
+      subtitle: "Multiplication\nTables  1–50",
+      icon: "grid",
+      color: colors.tableMaster,
+      badge: "POPULAR",
+      onPress: () => router.push("/table-select"),
+    },
+    {
+      title: "SQUARE / CUBE",
+      subtitle: "Powers & Roots\nn² and n³",
+      icon: "zap",
+      color: colors.squareCube,
+      onPress: () => router.push("/squarecube-select"),
+    },
+    {
+      title: "FRACTION %",
+      subtitle: "Fractions &\nPercentages",
+      icon: "percent",
+      color: colors.fractionPct,
+      onPress: () => router.push("/fraction-select"),
+    },
+    {
+      title: "LIGHTNING +",
+      subtitle: "4-Digit Speed\nAddition",
+      icon: "plus-circle",
+      color: colors.lightning,
+      onPress: () =>
+        router.push({ pathname: "/quiz", params: { mode: "addition", questionCount: "20" } }),
+    },
+  ];
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: topPad + 16, paddingBottom: bottomPad + 16 },
+          { paddingTop: topPad + 12, paddingBottom: bottomPad + 16 },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Text style={[styles.appName, { color: colors.primary }]}>
-            MathDrill
-          </Text>
-          <Text style={[styles.tagline, { color: colors.mutedForeground }]}>
-            Bank Exam Speed Practice
-          </Text>
+        <View style={styles.topBar}>
+          <View>
+            <Text style={[styles.appName, { color: colors.foreground }]}>MathDrill</Text>
+            <Text style={[styles.tagline, { color: colors.mutedForeground }]}>
+              Bank Exam Speed Practice
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => router.push("/stats")}
+            style={({ pressed }) => [
+              styles.statsBtn,
+              { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Feather name="bar-chart-2" size={20} color={colors.stats} />
+            <Text style={[styles.statsBtnLabel, { color: colors.mutedForeground }]}>Stats</Text>
+          </Pressable>
         </View>
 
         {sessions.length > 0 && (
-          <View
-            style={[styles.quickStats, { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.primary }]}>
-                {totalQuestions}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-                Attempted
-              </Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.success }]}>
-                {accuracy}%
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-                Accuracy
-              </Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.secondary }]}>
-                {sessions.length}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-                Sessions
-              </Text>
-            </View>
+          <View style={[styles.statsBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {[
+              { val: totalQ, label: "Attempted", color: colors.primary },
+              { val: `${accuracy}%`, label: "Accuracy", color: colors.success },
+              { val: sessions.length, label: "Sessions", color: colors.secondary },
+            ].map((s, i) => (
+              <React.Fragment key={s.label}>
+                {i > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
+                <View style={styles.statItem}>
+                  <Text style={[styles.statVal, { color: s.color }]}>{s.val}</Text>
+                  <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
+                    {s.label}
+                  </Text>
+                </View>
+              </React.Fragment>
+            ))}
           </View>
         )}
 
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-          SELECT MODE
+          SELECT DRILL MODE
         </Text>
 
-        <ModeCard
-          title="Table Master"
-          subtitle="Multiplication Tables  ·  1–50"
-          icon="grid"
-          color={colors.tableMaster}
-          onPress={() => router.push("/table-select")}
-        />
-        <ModeCard
-          title="Square / Cube Drill"
-          subtitle="Squares 1–100  ·  Cubes 1–50"
-          icon="zap"
-          color={colors.squareCube}
-          onPress={() => router.push("/squarecube-select")}
-        />
-        <ModeCard
-          title="Lightning Addition"
-          subtitle="4-Digit Speed Addition"
-          icon="plus-circle"
-          color={colors.lightning}
-          onPress={() => router.push({ pathname: "/quiz", params: { mode: "addition" } })}
-        />
-        <ModeCard
-          title="Performance Stats"
-          subtitle="Your speed & accuracy"
-          icon="bar-chart-2"
-          color={colors.stats}
-          onPress={() => router.push("/stats")}
-        />
+        <View style={styles.grid}>
+          {drills.map((d) => (
+            <GridCard key={d.title} {...d} />
+          ))}
+        </View>
       </ScrollView>
 
       <AdBanner />
@@ -152,87 +170,103 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  scroll: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  header: {
-    marginBottom: 8,
+  root: { flex: 1 },
+  scroll: { paddingHorizontal: 16, gap: 16 },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
   },
   appName: {
-    fontSize: 36,
+    fontSize: 32,
     fontFamily: "Inter_700Bold",
-    letterSpacing: -1,
+    letterSpacing: -0.5,
   },
   tagline: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
     marginTop: 2,
   },
-  quickStats: {
+  statsBtn: {
     flexDirection: "row",
-    borderRadius: 14,
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    padding: 16,
+  },
+  statsBtnLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
+  statsBar: {
+    flexDirection: "row",
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     alignItems: "center",
   },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statValue: {
-    fontSize: 24,
-    fontFamily: "Inter_700Bold",
-  },
+  statItem: { flex: 1, alignItems: "center" },
+  statVal: { fontSize: 22, fontFamily: "Inter_700Bold" },
   statLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: "Inter_400Regular",
     marginTop: 2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  statDivider: {
-    width: 1,
-    height: 40,
-  },
+  divider: { width: 1, height: 36 },
   sectionLabel: {
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
-    letterSpacing: 1.5,
+    letterSpacing: 2,
     textTransform: "uppercase",
-    marginTop: 8,
-    marginBottom: 4,
+    marginBottom: -4,
   },
-  card: {
-    borderRadius: 16,
-    padding: 20,
+  grid: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
+    flexWrap: "wrap",
+    gap: 16,
   },
-  cardIcon: {
+  gridCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16,
+    gap: 10,
+    justifyContent: "flex-end",
+    overflow: "hidden",
+  },
+  badge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+    letterSpacing: 0.5,
+  },
+  cardIconWrap: {
     width: 52,
     height: 52,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
-  cardText: {
-    flex: 1,
-  },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontFamily: "Inter_700Bold",
-    color: "#ffffff",
+    letterSpacing: 0.5,
   },
-  cardSubtitle: {
-    fontSize: 13,
+  cardSub: {
+    fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 2,
+    lineHeight: 17,
   },
 });
