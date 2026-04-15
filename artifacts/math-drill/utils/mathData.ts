@@ -3,6 +3,8 @@ export interface Question {
   answer: number;
   tolerance?: number;
   hint?: string;
+  /** Unique key used to track per-question performance e.g. "12x7" */
+  adaptiveKey?: string;
 }
 
 export function getTableQuestionsForRange(
@@ -135,4 +137,99 @@ export function getFractionMixedQuestions(count: number): Question[] {
     ...getFractionToPercentQuestions(half),
     ...getPercentToFractionQuestions(count - half),
   ].sort(() => Math.random() - 0.5);
+}
+
+// ── Smart Adaptive Table Generator ───────────────────────────────────────
+/**
+ * Builds the FULL pool of all (base × multiplier) questions for a range.
+ * Every question has an adaptiveKey like "12x7".
+ */
+export function buildFullTablePool(from: number, to: number): Question[] {
+  const pool: Question[] = [];
+  for (let base = from; base <= to; base++) {
+    for (let mul = 1; mul <= 10; mul++) {
+      pool.push({
+        question: `${base} × ${mul} = ?`,
+        answer: base * mul,
+        adaptiveKey: `${base}x${mul}`,
+      });
+    }
+  }
+  return pool;
+}
+
+/**
+ * Weighted random pick — items with higher weight appear more often.
+ */
+function weightedPick<T>(
+  items: T[],
+  weights: number[],
+  alreadyPicked: Set<number>
+): number {
+  // Only consider items not already picked in this batch
+  const candidates = items
+    .map((_, i) => i)
+    .filter((i) => !alreadyPicked.has(i));
+  if (candidates.length === 0) return -1;
+
+  const totalWeight = candidates.reduce((sum, i) => sum + weights[i], 0);
+  let rand = Math.random() * totalWeight;
+  for (const i of candidates) {
+    rand -= weights[i];
+    if (rand <= 0) return i;
+  }
+  return candidates[candidates.length - 1];
+}
+
+/**
+ * Smart adaptive table question selector.
+ *
+ * Algorithm:
+ *  1. Separate pool into UNSEEN and SEEN buckets.
+ *  2. UNSEEN questions always fill the batch first (coverage priority).
+ *  3. Remaining slots are filled via weighted random from ALL questions,
+ *     where weight reflects difficulty (slow / wrong = higher weight).
+ *  4. Batch is shuffled before returning.
+ *
+ * @param from       Table range start
+ * @param to         Table range end
+ * @param count      How many questions to return
+ * @param perfMap    Per-question performance data from AdaptiveContext
+ * @param getWeight  Weight function from AdaptiveContext
+ */
+export function getSmartTableQuestions(
+  from: number,
+  to: number,
+  count: number,
+  perfMap: Record<string, { attempts: number; avgTimeMs: number; errorCount: number }>,
+  getWeight: (perf: { attempts: number; avgTimeMs: number; errorCount: number } | undefined) => number
+): Question[] {
+  const pool = buildFullTablePool(from, to);
+  const weights = pool.map((q) => getWeight(q.adaptiveKey ? perfMap[q.adaptiveKey] : undefined));
+
+  const unseen = pool
+    .map((q, i) => ({ q, i }))
+    .filter(({ q }) => !q.adaptiveKey || !perfMap[q.adaptiveKey] || perfMap[q.adaptiveKey].attempts === 0);
+
+  const picked = new Set<number>();
+  const result: Question[] = [];
+
+  // Phase 1: coverage — add unseen questions first (shuffled)
+  const shuffledUnseen = unseen.sort(() => Math.random() - 0.5);
+  for (const { i } of shuffledUnseen) {
+    if (result.length >= count) break;
+    picked.add(i);
+    result.push(pool[i]);
+  }
+
+  // Phase 2: fill remaining with weighted picks (hard questions prioritised)
+  while (result.length < count) {
+    const idx = weightedPick(pool, weights, picked);
+    if (idx === -1) break; // all questions exhausted
+    picked.add(idx);
+    result.push(pool[idx]);
+  }
+
+  // Shuffle final batch so unseen and repetition questions are interleaved
+  return result.sort(() => Math.random() - 0.5);
 }

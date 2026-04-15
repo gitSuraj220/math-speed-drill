@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useStats } from "@/context/StatsContext";
+import { useAdaptive, getQuestionWeight } from "@/context/AdaptiveContext";
 import { AdBanner } from "@/components/AdBanner";
 import { NumberPad } from "@/components/NumberPad";
 import { ResultCard } from "@/components/ResultCard";
@@ -25,6 +26,7 @@ import {
   getFractionToPercentQuestions,
   getPercentToFractionQuestions,
   getFractionMixedQuestions,
+  getSmartTableQuestions,
 } from "@/utils/mathData";
 
 const QUESTION_TIME = 25;
@@ -60,11 +62,16 @@ function getModeLabel(mode: Mode, params: Record<string, string | undefined>) {
 function buildBatch(
   mode: Mode,
   count: number,
-  params: Record<string, string | undefined>
+  params: Record<string, string | undefined>,
+  perfMap?: Record<string, { attempts: number; avgTimeMs: number; errorCount: number }>
 ): Question[] {
   if (mode === "tables") {
     const from = params.tableFrom ? parseInt(params.tableFrom, 10) : 1;
     const to = params.tableTo ? parseInt(params.tableTo, 10) : 50;
+    // Use smart adaptive generator when perfMap is provided
+    if (perfMap) {
+      return getSmartTableQuestions(from, to, count, perfMap, getQuestionWeight);
+    }
     return getTableQuestionsForRange(from, to, count);
   }
   if (mode === "squarecube") {
@@ -113,10 +120,16 @@ export default function QuizScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { addSession } = useStats();
+  const { perfMap, updatePerf } = useAdaptive();
   const modeLabel = getModeLabel(mode, rawParams);
 
   const [questions, setQuestions] = useState<Question[]>(() =>
-    buildBatch(mode, isInfinity ? INFINITY_BATCH : totalQuestions, rawParams)
+    buildBatch(
+      mode,
+      isInfinity ? INFINITY_BATCH : totalQuestions,
+      rawParams,
+      mode === "tables" ? perfMap : undefined
+    )
   );
   const [currentIdx, setCurrentIdx] = useState(0);
   const [input, setInput] = useState("");
@@ -137,10 +150,15 @@ export default function QuizScreen() {
     if (isInfinity && questions.length - currentIdx <= INFINITY_REFILL_AT) {
       setQuestions((prev) => [
         ...prev,
-        ...buildBatch(mode, INFINITY_BATCH, rawParams),
+        ...buildBatch(
+          mode,
+          INFINITY_BATCH,
+          rawParams,
+          mode === "tables" ? perfMap : undefined
+        ),
       ]);
     }
-  }, [currentIdx, isInfinity, questions.length]);
+  }, [currentIdx, isInfinity, questions.length, perfMap]);
 
   const stopTimer = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -191,6 +209,11 @@ export default function QuizScreen() {
       const elapsed = Date.now() - questionStartRef.current;
       const userAnswer = timeout ? "" : (forcedInput ?? input);
       const isCorrect = !timeout && isAnswerCorrect(currentQ, userAnswer);
+
+      // Update adaptive difficulty tracking for table questions
+      if (mode === "tables" && currentQ.adaptiveKey) {
+        updatePerf(currentQ.adaptiveKey, elapsed, isCorrect);
+      }
 
       const newCorrect = isCorrect ? correct + 1 : correct;
       const newIncorrect = isCorrect ? incorrect : incorrect + 1;
