@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import React, { useEffect } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 
@@ -10,6 +10,8 @@ interface ResultCardProps {
   userAnswer: string;
   /** Full question text e.g. "7 × 8" — shown in explanation on wrong answers */
   question?: string;
+  /** Called when user taps "Got it" on wrong-answer card */
+  onContinue?: () => void;
 }
 
 export function ResultCard({
@@ -17,6 +19,7 @@ export function ResultCard({
   correctAnswer,
   userAnswer,
   question,
+  onContinue,
 }: ResultCardProps) {
   const colors = useColors();
 
@@ -75,6 +78,17 @@ export function ResultCard({
           <Text style={styles.answerHighlight}>{correctAnswer}</Text>
         </Text>
       </View>
+
+      {/* Got it button */}
+      {onContinue && (
+        <Pressable
+          onPress={onContinue}
+          style={({ pressed }) => [styles.gotItBtn, { opacity: pressed ? 0.8 : 1 }]}
+        >
+          <Text style={styles.gotItText}>Got it</Text>
+          <Feather name="arrow-right" size={16} color="#fff" />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -134,5 +148,20 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: "Inter_700Bold",
     color: "#991b1b",
+  },
+  gotItBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#b91c1c",
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginTop: 2,
+  },
+  gotItText: {
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
   },
 });

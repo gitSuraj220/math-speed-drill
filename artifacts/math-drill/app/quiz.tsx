@@ -169,6 +169,8 @@ export default function QuizScreen() {
   const questionStartRef = useRef(Date.now());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSubmitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Stores the "advance to next question" fn for wrong answers — called when user taps OK
+  const pendingAdvanceRef = useRef<(() => void) | null>(null);
 
   const currentQ = questions[currentIdx];
   const progress = timeLeft / QUESTION_TIME;
@@ -251,8 +253,9 @@ export default function QuizScreen() {
       if (isCorrect) setCorrect(newCorrect); else setIncorrect(newIncorrect);
       setPhase("result");
 
-      const delay = isCorrect ? 700 : 1400;
-      setTimeout(async () => {
+      // The advance function — moves to next question or finishes session
+      const advance = async () => {
+        pendingAdvanceRef.current = null;
         const sessionOver = !isInfinity && currentIdx + 1 >= totalQuestions;
         if (sessionOver) {
           await finishSession(newCorrect, newIncorrect, newTimes);
@@ -262,10 +265,23 @@ export default function QuizScreen() {
           setInput("");
           setPhase("question");
         }
-      }, delay);
+      };
+
+      if (isCorrect) {
+        // Correct: auto-advance after short delay
+        setTimeout(advance, 700);
+      } else {
+        // Wrong / timeout: wait for user to tap "Got it"
+        pendingAdvanceRef.current = advance;
+      }
     },
     [input, currentQ, currentIdx, correct, incorrect, answerTimes, isInfinity, totalQuestions, finishSession, stopTimer]
   );
+
+  // Called by the "Got it" button on the wrong-answer card
+  const handleContinue = useCallback(() => {
+    if (pendingAdvanceRef.current) pendingAdvanceRef.current();
+  }, []);
 
   const handleDigit = useCallback(
     (digit: string) => {
@@ -477,6 +493,7 @@ export default function QuizScreen() {
                 correctAnswer={currentQ.answer}
                 userAnswer={input}
                 question={currentQ.question}
+                onContinue={lastCorrect ? undefined : handleContinue}
               />
           </View>
         ) : (
