@@ -31,12 +31,22 @@ import {
   getDigitSubtractionQuestions,
   getMixedOperationQuestions,
 } from "@/utils/mathData";
+import {
+  generateApproximationQuestions,
+  generateApproximationOptions,
+  generateSeriesQuestions,
+  generateSeriesOptions,
+  generatePercentageQuestions,
+  generatePercentageOptions,
+  generateSimplificationQuestions,
+  type PctType,
+} from "@/utils/examData";
 
 const QUESTION_TIME = 25;
 const INFINITY_BATCH = 30;
 const INFINITY_REFILL_AT = 8;
 
-type Mode = "tables" | "squarecube" | "addition" | "fraction";
+type Mode = "tables" | "squarecube" | "addition" | "fraction" | "approximation" | "series" | "percentage" | "simplification";
 type DrillType = "squares" | "cubes" | "mixed";
 type FractionMode = "frac_to_pct" | "pct_to_frac" | "mixed";
 
@@ -86,6 +96,11 @@ function fmtOption(value: number, fm: FractionMode): string {
   return `${s}%`;
 }
 
+function fmtMCQOption(value: number, m: Mode, fm: FractionMode): string {
+  if (m === "fraction") return fmtOption(value, fm);
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
 function getModeLabel(mode: Mode, params: Record<string, string | undefined>) {
   if (mode === "tables") {
     const f = params.tableFrom;
@@ -104,6 +119,26 @@ function getModeLabel(mode: Mode, params: Record<string, string | undefined>) {
     if (fm === "frac_to_pct") return "Fraction → %";
     if (fm === "pct_to_frac") return "% → Fraction";
     return "Fraction % Mixed";
+  }
+  if (mode === "approximation") {
+    const diff = params.difficulty ?? "medium";
+    return `Approximation (${diff.charAt(0).toUpperCase() + diff.slice(1)})`;
+  }
+  if (mode === "series") return "Number Series";
+  if (mode === "percentage") {
+    const pt = params.pctType ?? "mixed";
+    const labels: Record<string, string> = {
+      find_pct_of: "Find X% of Y",
+      what_pct_is: "X is ?% of Y",
+      after_increase: "% Increase",
+      after_decrease: "% Decrease",
+      mixed: "Percentage Mixed",
+    };
+    return labels[pt] ?? "Percentage";
+  }
+  if (mode === "simplification") {
+    const diff = params.difficulty ?? "medium";
+    return `Simplification (${diff.charAt(0).toUpperCase() + diff.slice(1)})`;
   }
   // addition mode
   const op = params.operation ?? "add";
@@ -148,6 +183,12 @@ function buildBatch(
     if (fm === "pct_to_frac") return getPercentToFractionQuestions(count);
     return getFractionMixedQuestions(count);
   }
+  if (mode === "approximation") {
+    return generateApproximationQuestions((params.difficulty as any) ?? "medium", count);
+  }
+  if (mode === "series") return generateSeriesQuestions(count);
+  if (mode === "percentage") return generatePercentageQuestions((params.pctType as PctType) ?? "mixed", count);
+  if (mode === "simplification") return generateSimplificationQuestions((params.difficulty as any) ?? "medium", count);
   // addition / subtraction with digit selection
   const op = params.operation ?? "add";
   const combo = params.digitCombo ?? "4+4";
@@ -186,6 +227,9 @@ export default function QuizScreen() {
   const isInfinity = parsedCount === 0;
   const totalQuestions = isInfinity ? 0 : Math.max(10, Math.min(50, parsedCount));
 
+  // MCQ modes: fraction, approximation, series, percentage
+  const isMCQMode = mode === "fraction" || mode === "approximation" || mode === "series" || mode === "percentage";
+
   const showDecimal =
     mode === "fraction" && (fractionMode === "frac_to_pct" || fractionMode === "mixed");
 
@@ -218,19 +262,25 @@ export default function QuizScreen() {
   // Stores the "advance to next question" fn for wrong answers — called when user taps OK
   const pendingAdvanceRef = useRef<(() => void) | null>(null);
 
-  // MCQ options for fraction mode
+  // MCQ options for MCQ modes
   const [options, setOptions] = useState<number[]>([]);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
 
   const currentQ = questions[currentIdx];
   const progress = timeLeft / QUESTION_TIME;
 
-  // Regenerate MCQ options for every new fraction question
+  // Regenerate MCQ options for every new MCQ question
   useEffect(() => {
     if (mode === "fraction") {
       setOptions(generateFractionOptions(currentQ.answer, currentQ.tolerance ?? 0, fractionMode));
-      setSelectedOption(null);
+    } else if (mode === "approximation") {
+      setOptions(generateApproximationOptions(currentQ.answer, currentQ.tolerance ?? 0));
+    } else if (mode === "series") {
+      setOptions(generateSeriesOptions(currentQ.answer));
+    } else if (mode === "percentage") {
+      setOptions(generatePercentageOptions(currentQ.answer));
     }
+    setSelectedOption(null);
   }, [currentIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -344,7 +394,7 @@ export default function QuizScreen() {
     if (pendingAdvanceRef.current) pendingAdvanceRef.current();
   }, []);
 
-  // Called when user taps a fraction MCQ option
+  // Called when user taps an MCQ option
   const handleOptionTap = useCallback(
     (value: number) => {
       if (phase !== "question") return;
@@ -426,11 +476,17 @@ export default function QuizScreen() {
     if (rawParams.cbFrom) retryParams.cbFrom = rawParams.cbFrom;
     if (rawParams.cbTo) retryParams.cbTo = rawParams.cbTo;
     if (rawParams.fractionMode) retryParams.fractionMode = rawParams.fractionMode;
+    if (rawParams.difficulty) retryParams.difficulty = rawParams.difficulty;
+    if (rawParams.pctType) retryParams.pctType = rawParams.pctType;
 
     const accent =
       mode === "fraction" ? colors.fractionPct
       : mode === "squarecube" ? colors.squareCube
       : mode === "addition" ? colors.lightning
+      : mode === "approximation" ? colors.approximation
+      : mode === "series" ? colors.series
+      : mode === "percentage" ? colors.percentageCalc
+      : mode === "simplification" ? colors.simplification
       : colors.primary;
 
     return (
@@ -490,6 +546,10 @@ export default function QuizScreen() {
     mode === "fraction" ? colors.fractionPct
     : mode === "squarecube" ? colors.squareCube
     : mode === "addition" ? colors.lightning
+    : mode === "approximation" ? colors.approximation
+    : mode === "series" ? colors.series
+    : mode === "percentage" ? colors.percentageCalc
+    : mode === "simplification" ? colors.simplification
     : colors.primary;
 
   return (
@@ -532,7 +592,7 @@ export default function QuizScreen() {
               {currentQ.hint}
             </Text>
           )}
-          {mode !== "fraction" && (
+          {!isMCQMode && (
             <>
               <View
                 style={[
@@ -560,8 +620,8 @@ export default function QuizScreen() {
           )}
         </View>
 
-        {mode === "fraction" ? (
-          // ── Fraction mode: MCQ option grid ──────────────────────────────
+        {isMCQMode ? (
+          // ── MCQ mode: option grid ──────────────────────────────────────────
           <>
             <View style={styles.optionGrid}>
               {options.map((opt) => {
@@ -586,7 +646,7 @@ export default function QuizScreen() {
                     ]}
                   >
                     <Text style={[styles.optionText, { color: textCol }]}>
-                      {fmtOption(opt, fractionMode)}
+                      {fmtMCQOption(opt, mode, fractionMode)}
                     </Text>
                   </Pressable>
                 );
@@ -597,7 +657,7 @@ export default function QuizScreen() {
                 <ResultCard
                   isCorrect={lastCorrect}
                   correctAnswer={currentQ.answer}
-                  userAnswer={selectedOption !== null ? fmtOption(selectedOption, fractionMode) : ""}
+                  userAnswer={selectedOption !== null ? fmtMCQOption(selectedOption, mode, fractionMode) : ""}
                   question={currentQ.question}
                   onContinue={lastCorrect ? undefined : handleContinue}
                 />

@@ -24,7 +24,7 @@
     },
     "android": {
       "package": "com.suraj220.mathspeeddrill",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#1e3a5f"

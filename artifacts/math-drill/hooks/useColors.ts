@@ -15,10 +15,17 @@ import colors from "@/constants/colors";
  * device's appearance setting.
  */
 export function useColors() {
-  const scheme = useColorScheme();
+  const colorScheme = useColorScheme();
   const palette =
-    scheme === "dark" && "dark" in colors
+    colorScheme === "dark" && "dark" in colors
       ? (colors as Record<string, typeof colors.light>).dark
       : colors.light;
-  return { ...palette, radius: colors.radius };
+  return {
+    ...palette,
+    radius: colors.radius,
+    approximation: colorScheme === "dark" ? "#f59e0b" : "#d97706",
+    series:         colorScheme === "dark" ? "#8b5cf6" : "#7c3aed",
+    percentageCalc: colorScheme === "dark" ? "#06b6d4" : "#0891b2",
+    simplification: colorScheme === "dark" ? "#ec4899" : "#db2777",
+  };
 }

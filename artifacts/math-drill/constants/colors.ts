@@ -35,6 +35,10 @@ const colors = {
     lightning: "#c2410c",
     stats: "#047857",
     fractionPct: "#be185d",
+    approximation: "#d97706",
+    series: "#7c3aed",
+    percentageCalc: "#0891b2",
+    simplification: "#db2777",
 
     timerBar: "#22c55e",
     timerBarWarning: "#f59e0b",

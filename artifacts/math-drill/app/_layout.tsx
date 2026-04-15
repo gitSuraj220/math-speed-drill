@@ -30,6 +30,10 @@ function RootLayoutNav() {
       <Stack.Screen name="table-select" options={{ headerShown: false }} />
       <Stack.Screen name="squarecube-select" options={{ headerShown: false }} />
       <Stack.Screen name="addition-select" options={{ headerShown: false }} />
+      <Stack.Screen name="approx-select" options={{ headerShown: false }} />
+      <Stack.Screen name="series-select" options={{ headerShown: false }} />
+      <Stack.Screen name="percentage-select" options={{ headerShown: false }} />
+      <Stack.Screen name="simplification-select" options={{ headerShown: false }} />
     </Stack>
   );
 }

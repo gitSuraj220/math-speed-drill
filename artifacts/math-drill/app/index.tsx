@@ -69,6 +69,31 @@ export default function Dashboard() {
   const totalQ = sessions.reduce((s, r) => s + r.correct + r.incorrect, 0);
   const accuracy = totalQ > 0 ? Math.round((totalCorrect / totalQ) * 100) : 0;
 
+  // Streak + today's progress
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayCount = sessions
+    .filter((s) => s.date.slice(0, 10) === todayStr)
+    .reduce((acc, s) => acc + s.correct + s.incorrect, 0);
+
+  function computeStreak(): number {
+    if (sessions.length === 0) return 0;
+    const days = Array.from(new Set(sessions.map((s) => s.date.slice(0, 10)))).sort().reverse();
+    let streak = 0;
+    let cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+    for (const day of days) {
+      const cursorStr = cursor.toISOString().slice(0, 10);
+      if (day === cursorStr) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+      } else if (day < cursorStr) {
+        break;
+      }
+    }
+    return streak;
+  }
+  const streak = computeStreak();
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -101,6 +126,37 @@ export default function Dashboard() {
       icon: "plus-circle",
       color: colors.lightning,
       onPress: () => router.push("/addition-select"),
+    },
+    {
+      title: "APPROXIMATION",
+      subtitle: "Round & Estimate\nQuick Speed Test",
+      icon: "zap",
+      color: colors.approximation,
+      badge: "IBPS",
+      onPress: () => router.push("/approx-select"),
+    },
+    {
+      title: "NUMBER SERIES",
+      subtitle: "Find Next Term\nin Sequence",
+      icon: "trending-up",
+      color: colors.series,
+      badge: "SSC",
+      onPress: () => router.push("/series-select"),
+    },
+    {
+      title: "PERCENTAGE",
+      subtitle: "% of, Change &\nComparisons",
+      icon: "percent",
+      color: colors.percentageCalc,
+      onPress: () => router.push("/percentage-select"),
+    },
+    {
+      title: "SIMPLIFICATION",
+      subtitle: "BODMAS · Order\nof Operations",
+      icon: "layers",
+      color: colors.simplification,
+      badge: "SSC",
+      onPress: () => router.push("/simplification-select"),
     },
   ];
 
@@ -149,6 +205,20 @@ export default function Dashboard() {
                 </View>
               </React.Fragment>
             ))}
+          </View>
+        )}
+
+        {todayCount > 0 && (
+          <View style={[styles.streakBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="zap" size={16} color="#f59e0b" />
+            <Text style={[styles.streakText, { color: colors.foreground }]}>
+              {streak > 1 ? `${streak} day streak` : "Today"}
+            </Text>
+            <View style={[styles.streakDivider, { backgroundColor: colors.border }]} />
+            <Feather name="check-circle" size={16} color={colors.success} />
+            <Text style={[styles.streakText, { color: colors.foreground }]}>
+              {todayCount} questions today
+            </Text>
           </View>
         )}
 
@@ -217,6 +287,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   divider: { width: 1, height: 36 },
+  streakBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  streakText: { fontSize: 13, fontFamily: "Inter_500Medium", flex: 1 },
+  streakDivider: { width: 1, height: 20 },
   sectionLabel: {
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
