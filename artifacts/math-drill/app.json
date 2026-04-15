@@ -45,8 +45,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "0b753e83-24c2-4a02-9740-fd40792cc1ec"
       }
-    }
+    },
+    "owner": "suru220"
   }
 }
