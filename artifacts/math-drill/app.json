@@ -14,9 +14,23 @@
       "backgroundColor": "#1e3a5f"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.suraj220.mathspeeddrill",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Not used",
+        "NSLocationWhenInUseUsageDescription": "Not used"
+      }
     },
-    "android": {},
+    "android": {
+      "package": "com.suraj220.mathspeeddrill",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#1e3a5f"
+      },
+      "permissions": []
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
@@ -28,6 +42,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
     }
   }
 }
