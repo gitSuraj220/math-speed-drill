@@ -69,7 +69,7 @@ export default function PercentageSelectScreen() {
           </View>
           <Text style={[styles.screenTitle, { color: colors.foreground }]}>Percentage Calc</Text>
           <Text style={[styles.screenSub, { color: colors.mutedForeground }]}>
-            %, change &amp; comparison
+            %, change & comparison
           </Text>
         </View>
 

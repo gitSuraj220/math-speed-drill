@@ -19,7 +19,6 @@ import { ResultCard } from "@/components/ResultCard";
 import { TimerBar } from "@/components/TimerBar";
 import {
   Question,
-  getAdditionQuestions,
   getCubeQuestionsForRange,
   getSquareQuestionsForRange,
   getTableQuestionsForRange,

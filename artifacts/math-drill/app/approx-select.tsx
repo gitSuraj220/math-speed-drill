@@ -66,7 +66,7 @@ export default function ApproxSelectScreen() {
           </View>
           <Text style={[styles.screenTitle, { color: colors.foreground }]}>Approximation Drill</Text>
           <Text style={[styles.screenSub, { color: colors.mutedForeground }]}>
-            Round &amp; estimate fast
+            Round & estimate fast
           </Text>
         </View>
 
