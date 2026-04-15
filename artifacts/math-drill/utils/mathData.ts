@@ -83,6 +83,74 @@ export function getAdditionQuestions(count: number = 10): Question[] {
   });
 }
 
+// ── Digit range helpers ───────────────────────────────────────────────────
+function digitMin(d: number): number {
+  if (d === 1) return 1;
+  return Math.pow(10, d - 1);
+}
+function digitMax(d: number): number {
+  return Math.pow(10, d) - 1;
+}
+function randInDigits(d: number): number {
+  return Math.floor(Math.random() * (digitMax(d) - digitMin(d) + 1)) + digitMin(d);
+}
+
+// ── Digit-specific addition ───────────────────────────────────────────────
+/**
+ * Generates addition questions for specific digit combinations.
+ * e.g. digits1=2, digits2=3 → "45 + 312 = ?"
+ */
+export function getDigitAdditionQuestions(
+  digits1: number,
+  digits2: number,
+  count: number
+): Question[] {
+  return Array.from({ length: count }, () => {
+    const a = randInDigits(digits1);
+    const b = randInDigits(digits2);
+    return { question: `${a} + ${b} = ?`, answer: a + b };
+  });
+}
+
+// ── Digit-specific subtraction ────────────────────────────────────────────
+/**
+ * Generates subtraction questions. Always ensures result ≥ 0.
+ * e.g. digits1=2, digits2=2 → "87 - 34 = ?"
+ */
+export function getDigitSubtractionQuestions(
+  digits1: number,
+  digits2: number,
+  count: number
+): Question[] {
+  return Array.from({ length: count }, () => {
+    let a = randInDigits(digits1);
+    let b = randInDigits(digits2);
+    // Make sure a >= b so answer is never negative
+    if (b > a) [a, b] = [b, a];
+    return { question: `${a} − ${b} = ?`, answer: a - b };
+  });
+}
+
+// ── Mixed operation questions ─────────────────────────────────────────────
+/**
+ * Mixes addition and subtraction questions for given digit combo.
+ */
+export function getMixedOperationQuestions(
+  digits1: number,
+  digits2: number,
+  count: number
+): Question[] {
+  return Array.from({ length: count }, () => {
+    const isAdd = Math.random() > 0.5;
+    let a = randInDigits(digits1);
+    let b = randInDigits(digits2);
+    if (!isAdd && b > a) [a, b] = [b, a];
+    return isAdd
+      ? { question: `${a} + ${b} = ?`, answer: a + b }
+      : { question: `${a} − ${b} = ?`, answer: a - b };
+  });
+}
+
 interface FractionEntry {
   num: number;
   den: number;

@@ -29,6 +29,7 @@ function RootLayoutNav() {
       <Stack.Screen name="stats" options={{ headerShown: false }} />
       <Stack.Screen name="table-select" options={{ headerShown: false }} />
       <Stack.Screen name="squarecube-select" options={{ headerShown: false }} />
+      <Stack.Screen name="addition-select" options={{ headerShown: false }} />
     </Stack>
   );
 }

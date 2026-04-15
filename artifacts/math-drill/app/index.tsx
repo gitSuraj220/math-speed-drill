@@ -96,12 +96,11 @@ export default function Dashboard() {
       onPress: () => router.push("/fraction-select"),
     },
     {
-      title: "LIGHTNING +",
-      subtitle: "4-Digit Speed\nAddition",
+      title: "LIGHTNING + / −",
+      subtitle: "Addition &\nSubtraction Drills",
       icon: "plus-circle",
       color: colors.lightning,
-      onPress: () =>
-        router.push({ pathname: "/quiz", params: { mode: "addition", questionCount: "20" } }),
+      onPress: () => router.push("/addition-select"),
     },
   ];
 

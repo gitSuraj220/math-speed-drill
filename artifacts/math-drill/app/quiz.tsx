@@ -27,6 +27,9 @@ import {
   getPercentToFractionQuestions,
   getFractionMixedQuestions,
   getSmartTableQuestions,
+  getDigitAdditionQuestions,
+  getDigitSubtractionQuestions,
+  getMixedOperationQuestions,
 } from "@/utils/mathData";
 
 const QUESTION_TIME = 25;
@@ -56,7 +59,12 @@ function getModeLabel(mode: Mode, params: Record<string, string | undefined>) {
     if (fm === "pct_to_frac") return "% → Fraction";
     return "Fraction % Mixed";
   }
-  return "Lightning Addition";
+  // addition mode
+  const op = params.operation ?? "add";
+  const combo = params.digitCombo ?? "4+4";
+  const opLabel = op === "add" ? "+" : op === "sub" ? "−" : "+ / −";
+  if (combo === "mixed") return `Lightning ${opLabel} Mixed`;
+  return `Lightning ${opLabel} (${combo} digit)`;
 }
 
 function buildBatch(
@@ -94,7 +102,26 @@ function buildBatch(
     if (fm === "pct_to_frac") return getPercentToFractionQuestions(count);
     return getFractionMixedQuestions(count);
   }
-  return getAdditionQuestions(count);
+  // addition / subtraction with digit selection
+  const op = params.operation ?? "add";
+  const combo = params.digitCombo ?? "4+4";
+  if (combo === "mixed") {
+    // mixed digit sizes — randomly vary each question
+    const COMBOS = [
+      [1,1],[1,2],[2,2],[2,3],[3,3],[3,4],[4,4],
+    ] as [number,number][];
+    return Array.from({ length: count }, () => {
+      const [d1, d2] = COMBOS[Math.floor(Math.random() * COMBOS.length)];
+      if (op === "add") return getDigitAdditionQuestions(d1, d2, 1)[0];
+      if (op === "sub") return getDigitSubtractionQuestions(d1, d2, 1)[0];
+      return getMixedOperationQuestions(d1, d2, 1)[0];
+    });
+  }
+  const d1 = params.digits1 ? parseInt(params.digits1, 10) : 4;
+  const d2 = params.digits2 ? parseInt(params.digits2, 10) : 4;
+  if (op === "add") return getDigitAdditionQuestions(d1, d2, count);
+  if (op === "sub") return getDigitSubtractionQuestions(d1, d2, count);
+  return getMixedOperationQuestions(d1, d2, count);
 }
 
 function isAnswerCorrect(q: Question, userInput: string): boolean {
