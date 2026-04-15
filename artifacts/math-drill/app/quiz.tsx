@@ -40,6 +40,52 @@ type Mode = "tables" | "squarecube" | "addition" | "fraction";
 type DrillType = "squares" | "cubes" | "mixed";
 type FractionMode = "frac_to_pct" | "pct_to_frac" | "mixed";
 
+// ── Fraction MCQ helpers ──────────────────────────────────────────────────────
+function generateFractionOptions(
+  answer: number,
+  tolerance: number,
+  fm: FractionMode
+): number[] {
+  const fmt = (n: number) => Math.round(n * 100) / 100;
+  const ans = fmt(answer);
+
+  let pool: number[];
+  if (fm === "pct_to_frac") {
+    // Numerator is an integer — pick neighbouring integers
+    pool = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
+      .filter((n) => n !== ans);
+  } else {
+    // Percentage — broad pool of plausible % values
+    pool = [
+      5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,
+      33.33, 66.67, 16.67, 83.33,
+      11.11, 22.22, 44.44, 55.56, 77.78, 88.89,
+      12.5, 37.5, 62.5, 87.5,
+      6.25, 18.75, 31.25, 43.75, 56.25, 68.75, 81.25, 93.75,
+      14.29, 28.57, 42.86, 57.14, 71.43, 85.71,
+      8.33, 41.67, 58.33, 91.67,
+    ].map(fmt).filter((v) => Math.abs(v - ans) > tolerance);
+  }
+
+  const chosen = new Set<number>([ans]);
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  for (const c of shuffled) {
+    if (chosen.size >= 4) break;
+    if (!chosen.has(c)) chosen.add(c);
+  }
+  // Safety pad
+  let extra = 1;
+  while (chosen.size < 4) chosen.add(ans + extra++);
+
+  return Array.from(chosen).sort(() => Math.random() - 0.5);
+}
+
+function fmtOption(value: number, fm: FractionMode): string {
+  if (fm === "pct_to_frac") return String(value);
+  const s = Number.isInteger(value) ? String(value) : value.toFixed(2);
+  return `${s}%`;
+}
+
 function getModeLabel(mode: Mode, params: Record<string, string | undefined>) {
   if (mode === "tables") {
     const f = params.tableFrom;
@@ -172,8 +218,20 @@ export default function QuizScreen() {
   // Stores the "advance to next question" fn for wrong answers — called when user taps OK
   const pendingAdvanceRef = useRef<(() => void) | null>(null);
 
+  // MCQ options for fraction mode
+  const [options, setOptions] = useState<number[]>([]);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+
   const currentQ = questions[currentIdx];
   const progress = timeLeft / QUESTION_TIME;
+
+  // Regenerate MCQ options for every new fraction question
+  useEffect(() => {
+    if (mode === "fraction") {
+      setOptions(generateFractionOptions(currentQ.answer, currentQ.tolerance ?? 0, fractionMode));
+      setSelectedOption(null);
+    }
+  }, [currentIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (isInfinity && questions.length - currentIdx <= INFINITY_REFILL_AT) {
@@ -285,6 +343,16 @@ export default function QuizScreen() {
   const handleContinue = useCallback(() => {
     if (pendingAdvanceRef.current) pendingAdvanceRef.current();
   }, []);
+
+  // Called when user taps a fraction MCQ option
+  const handleOptionTap = useCallback(
+    (value: number) => {
+      if (phase !== "question") return;
+      setSelectedOption(value);
+      handleSubmit(false, String(value));
+    },
+    [phase, handleSubmit]
+  );
 
   const handleDigit = useCallback(
     (digit: string) => {
@@ -464,42 +532,91 @@ export default function QuizScreen() {
               {currentQ.hint}
             </Text>
           )}
-          <View
-            style={[
-              styles.inputDisplay,
-              {
-                backgroundColor: colors.card,
-                borderColor: input ? modeAccent : colors.border,
-              },
-            ]}
-          >
-            <Text style={[styles.inputText, { color: input ? colors.foreground : colors.mutedForeground }]}>
-              {input || "—"}
-            </Text>
-          </View>
-          {!showDecimal && (
-            <Text style={[styles.autoHint, { color: colors.mutedForeground }]}>
-              Auto-submits on correct answer
-            </Text>
-          )}
-          {showDecimal && (
-            <Text style={[styles.autoHint, { color: colors.mutedForeground }]}>
-              Use · for decimal point  ·  25s timer
-            </Text>
+          {mode !== "fraction" && (
+            <>
+              <View
+                style={[
+                  styles.inputDisplay,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: input ? modeAccent : colors.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.inputText, { color: input ? colors.foreground : colors.mutedForeground }]}>
+                  {input || "—"}
+                </Text>
+              </View>
+              {!showDecimal ? (
+                <Text style={[styles.autoHint, { color: colors.mutedForeground }]}>
+                  Auto-submits on correct answer
+                </Text>
+              ) : (
+                <Text style={[styles.autoHint, { color: colors.mutedForeground }]}>
+                  Use · for decimal point  ·  25s timer
+                </Text>
+              )}
+            </>
           )}
         </View>
 
-        {phase === "result" ? (
+        {mode === "fraction" ? (
+          // ── Fraction mode: MCQ option grid ──────────────────────────────
+          <>
+            <View style={styles.optionGrid}>
+              {options.map((opt) => {
+                const isCorrectOpt = Math.abs(opt - currentQ.answer) <= (currentQ.tolerance ?? 0);
+                const isSelected = selectedOption === opt;
+                let bg = colors.card;
+                let border = colors.border;
+                let textCol = colors.foreground;
+                if (phase === "result") {
+                  if (isCorrectOpt) { bg = "#dcfce7"; border = "#86efac"; textCol = "#15803d"; }
+                  else if (isSelected) { bg = "#fee2e2"; border = "#fca5a5"; textCol = "#b91c1c"; }
+                  else { bg = colors.card; border = colors.border; textCol = colors.mutedForeground; }
+                }
+                return (
+                  <Pressable
+                    key={opt}
+                    onPress={() => handleOptionTap(opt)}
+                    disabled={phase !== "question"}
+                    style={({ pressed }) => [
+                      styles.optionBtn,
+                      { backgroundColor: bg, borderColor: border, opacity: pressed && phase === "question" ? 0.75 : 1 },
+                    ]}
+                  >
+                    <Text style={[styles.optionText, { color: textCol }]}>
+                      {fmtOption(opt, fractionMode)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {phase === "result" && (
+              <View style={styles.resultArea}>
+                <ResultCard
+                  isCorrect={lastCorrect}
+                  correctAnswer={currentQ.answer}
+                  userAnswer={selectedOption !== null ? fmtOption(selectedOption, fractionMode) : ""}
+                  question={currentQ.question}
+                  onContinue={lastCorrect ? undefined : handleContinue}
+                />
+              </View>
+            )}
+          </>
+        ) : phase === "result" ? (
+          // ── Other modes: result card ─────────────────────────────────────
           <View style={styles.resultArea}>
             <ResultCard
-                isCorrect={lastCorrect}
-                correctAnswer={currentQ.answer}
-                userAnswer={input}
-                question={currentQ.question}
-                onContinue={lastCorrect ? undefined : handleContinue}
-              />
+              isCorrect={lastCorrect}
+              correctAnswer={currentQ.answer}
+              userAnswer={input}
+              question={currentQ.question}
+              onContinue={lastCorrect ? undefined : handleContinue}
+            />
           </View>
         ) : (
+          // ── Other modes: number pad ──────────────────────────────────────
           <NumberPad
             onPress={handleDigit}
             onDelete={handleDelete}
@@ -534,6 +651,24 @@ const styles = StyleSheet.create({
   inputText: { fontSize: 32, fontFamily: "Inter_600SemiBold" },
   autoHint: { fontSize: 11, fontFamily: "Inter_400Regular", letterSpacing: 0.3 },
   resultArea: { paddingBottom: 8 },
+  optionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  optionBtn: {
+    width: "47%",
+    borderRadius: 14,
+    borderWidth: 2,
+    paddingVertical: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  optionText: {
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+  },
   doneWrap: { flex: 1, paddingHorizontal: 16, justifyContent: "center" },
   doneCard: { borderRadius: 24, borderWidth: 1, padding: 28, gap: 14, alignItems: "center" },
   doneIconWrap: { width: 72, height: 72, borderRadius: 20, alignItems: "center", justifyContent: "center" },
