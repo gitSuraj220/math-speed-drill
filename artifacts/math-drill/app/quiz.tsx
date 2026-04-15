@@ -272,6 +272,9 @@ export default function QuizScreen() {
         setTimeout(advance, 700);
       } else {
         // Wrong / timeout: wait for user to tap "Got it"
+        // Reset timeLeft now so the "timeLeft===0 && phase==='question'" effect
+        // doesn't fire immediately when advance() transitions to the next question.
+        setTimeLeft(QUESTION_TIME);
         pendingAdvanceRef.current = advance;
       }
     },
