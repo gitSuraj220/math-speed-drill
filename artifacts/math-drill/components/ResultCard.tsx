@@ -8,12 +8,15 @@ interface ResultCardProps {
   isCorrect: boolean;
   correctAnswer: number;
   userAnswer: string;
+  /** Full question text e.g. "7 × 8" — shown in explanation on wrong answers */
+  question?: string;
 }
 
 export function ResultCard({
   isCorrect,
   correctAnswer,
   userAnswer,
+  question,
 }: ResultCardProps) {
   const colors = useColors();
 
@@ -27,25 +30,50 @@ export function ResultCard({
     }
   }, [isCorrect]);
 
-  const bg = isCorrect ? "#dcfce7" : "#fee2e2";
-  const fg = isCorrect ? "#15803d" : "#b91c1c";
-  const icon = isCorrect ? "check-circle" : "x-circle";
+  if (isCorrect) {
+    return (
+      <View style={[styles.container, { backgroundColor: "#dcfce7" }]}>
+        <Feather name="check-circle" size={28} color="#15803d" />
+        <View style={styles.textGroup}>
+          <Text style={[styles.label, { color: "#15803d" }]}>Correct!</Text>
+          {question && (
+            <Text style={[styles.sub, { color: "#15803d" }]}>
+              {question} = {correctAnswer}
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // ── Wrong answer — show full explanation ──────────────────────────────
+  const hasUserAnswer = userAnswer && userAnswer !== "" && userAnswer !== ".";
 
   return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
-      <Feather name={icon} size={28} color={fg} />
-      <View style={styles.textGroup}>
-        {isCorrect ? (
-          <Text style={[styles.label, { color: fg }]}>Correct!</Text>
-        ) : (
-          <>
-            <Text style={[styles.label, { color: fg }]}>Wrong</Text>
-            <Text style={[styles.sub, { color: fg }]}>
-              Answer: {correctAnswer}
-              {userAnswer ? `  (You: ${userAnswer})` : ""}
+    <View style={[styles.containerWrong, { backgroundColor: "#fff1f2", borderColor: "#fecdd3" }]}>
+      {/* Top row */}
+      <View style={styles.topRow}>
+        <Feather name="x-circle" size={28} color="#b91c1c" />
+        <View style={styles.textGroup}>
+          <Text style={[styles.label, { color: "#b91c1c" }]}>
+            {hasUserAnswer ? "Wrong Answer" : "Time's Up!"}
+          </Text>
+          {hasUserAnswer && (
+            <Text style={[styles.sub, { color: "#b91c1c" }]}>
+              You entered:{" "}
+              <Text style={{ fontFamily: "Inter_700Bold" }}>{userAnswer}</Text>
             </Text>
-          </>
-        )}
+          )}
+        </View>
+      </View>
+
+      {/* Explanation box */}
+      <View style={[styles.explanationBox, { backgroundColor: "#fee2e2", borderColor: "#fca5a5" }]}>
+        <Text style={styles.explanationLabel}>CORRECT ANSWER</Text>
+        <Text style={styles.explanationEquation}>
+          {question ? `${question} = ` : ""}
+          <Text style={styles.answerHighlight}>{correctAnswer}</Text>
+        </Text>
       </View>
     </View>
   );
@@ -60,6 +88,18 @@ const styles = StyleSheet.create({
     padding: 16,
     marginHorizontal: 16,
   },
+  containerWrong: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    marginHorizontal: 16,
+    gap: 10,
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
   textGroup: {
     flex: 1,
   },
@@ -68,8 +108,31 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
   },
   sub: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
     marginTop: 2,
+  },
+  explanationBox: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 3,
+  },
+  explanationLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    color: "#991b1b",
+    letterSpacing: 0.8,
+  },
+  explanationEquation: {
+    fontSize: 20,
+    fontFamily: "Inter_600SemiBold",
+    color: "#b91c1c",
+  },
+  answerHighlight: {
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+    color: "#991b1b",
   },
 });

@@ -422,7 +422,12 @@ export default function QuizScreen() {
 
         {phase === "result" ? (
           <View style={styles.resultArea}>
-            <ResultCard isCorrect={lastCorrect} correctAnswer={currentQ.answer} userAnswer={input} />
+            <ResultCard
+                isCorrect={lastCorrect}
+                correctAnswer={currentQ.answer}
+                userAnswer={input}
+                question={currentQ.question}
+              />
           </View>
         ) : (
           <NumberPad
